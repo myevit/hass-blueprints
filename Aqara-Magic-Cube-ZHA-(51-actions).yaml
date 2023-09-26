@@ -15,7 +15,6 @@ blueprint:
       selector:
         device:
           integration: zha
-          manufacturer: LUMI
     face_1_flip:
       name: Flip to face 1
       description: Actions to execute when the cube is flipped to face 1 in the top.
