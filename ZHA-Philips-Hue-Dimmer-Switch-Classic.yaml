@@ -17,7 +17,7 @@ blueprint:
       selector:
         entity:
           domain: light
-          multiple: true
+          multiple: false
     last_scene:
       name: Last scene dropdown helper
       description: Please select a Dropdown Helper to be used to record the last scene.
@@ -37,7 +37,7 @@ action:
   - variables:
       command: "{{ trigger.event.data.command }}"
       last_scene: !input 'last_scene'
-      current_scene: 
+      target_lights: !input 'light'
   - choose:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
@@ -81,10 +81,10 @@ action:
                     entity_id: !input 'light'
                   data: 
                     brightness_step_pct: >
-                      {% if state_attr('light.office_all', 'brightness') - ((10/100)*255 | round(0) | int)  > 1 %}
+                      {% if state_attr(target_lights, 'brightness') - ((10/100)*255 | round(0) | int)  > 1 %}
                         -10
                       {% else %}
-                        {% if state_attr('light.office_all', 'brightness') - ((1/100)*255 | round(0) | int)  > 1 %}
+                        {% if state_attr(target_lights, 'brightness') - ((1/100)*255 | round(0) | int)  > 1 %}
                           -1
                         {% else %}
                           .5
@@ -100,10 +100,10 @@ action:
               entity_id: !input 'light'
             data: 
               brightness_step_pct: >
-                {% if state_attr('light.office_all', 'brightness') - ((20/100)*255 | round(0) | int)  > 1 %}
+                {% if state_attr(target_lights, 'brightness') - ((20/100)*255 | round(0) | int)  > 1 %}
                   -20
                 {% else %}
-                  {% if state_attr('light.office_all', 'brightness') - ((1/100)*255 |  round(0) | int)  > 1 %}
+                  {% if state_attr(target_lights, 'brightness') - ((1/100)*255 |  round(0) | int)  > 1 %}
                     -1
                   {% else %}
                     .5
