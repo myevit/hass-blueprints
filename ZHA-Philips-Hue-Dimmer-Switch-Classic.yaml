@@ -1,0 +1,139 @@
+blueprint:
+  name: ZHA Philips Hue Dimmer Switch
+  description: Control lights with a Philips Hue Dimmer Switch
+  domain: automation
+  input:
+    dimmer_switch:
+      name: Dimmer Switch
+      description: The dimmer switch to use
+      selector:
+        device:
+          integration: zha
+          model: RWL022
+          multiple: false
+    light:
+      name: Lights
+      description: The lights to control
+      selector:
+        entity:
+          domain: light
+          multiple: false
+    last_scene:
+      name: Last scene dropdown helper
+      description: Please select a Dropdown Helper to be used to record the last scene.
+      selector:
+        entity:
+          domain:
+          - input_select
+          multiple: false
+mode: restart
+max_exceeded: silent
+trigger:
+  platform: event
+  event_type: zha_event
+  event_data:
+    device_id: !input 'dimmer_switch'
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      last_scene: !input 'last_scene'
+      target_lights: !input 'light'
+  - choose:
+      - conditions: "{{ command == 'on_press' }}"
+        sequence:
+          - service: light.toggle
+            target:
+              entity_id: !input 'light'
+      - conditions: "{{ command == 'up_hold' }}"
+        sequence:
+          - repeat:
+              until: "{{ command != 'up_hold' }}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id: !input 'light'
+                  data: 
+                    brightness_step_pct: 10
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+      - conditions: "{{ command == 'up_press' }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+            data: 
+              brightness_step_pct: 20
+      - conditions: "{{ command == 'up_double_press' }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+            data: 
+              brightness_pct: 100
+      - conditions: "{{ command == 'down_hold' }}"
+        sequence:
+          - repeat:
+              until: "{{ command != 'down_hold' }}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id: !input 'light'
+                  data: 
+                    brightness_step_pct: >
+                      {% if state_attr(target_lights, 'brightness') - ((10/100)*255 | round(0) | int)  > 1 %}
+                        -10
+                      {% else %}
+                        {% if state_attr(target_lights, 'brightness') - ((1/100)*255 | round(0) | int)  > 1 %}
+                          -1
+                        {% else %}
+                          .5
+                        {% endif %}
+                      {% endif %}
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+      - conditions: "{{ command == 'down_press' }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+            data: 
+              brightness_step_pct: >
+                {% if state_attr(target_lights, 'brightness') - ((20/100)*255 | round(0) | int)  > 1 %}
+                  -20
+                {% else %}
+                  {% if state_attr(target_lights, 'brightness') - ((1/100)*255 |  round(0) | int)  > 1 %}
+                    -1
+                  {% else %}
+                    .5
+                  {% endif %}
+                {% endif %}
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+      - conditions: "{{ command == 'down_double_press' }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: !input 'light'
+            data: 
+              brightness_pct: 1
+      - conditions: "{{ command == 'off_press' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: "{{ states(last_scene) }}"
+          - service: input_select.select_next
+            data:
+              cycle: true
+            target:
+              entity_id: !input 'last_scene'
+  - delay:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - service: input_select.select_first
+    target:
+      entity_id: !input 'last_scene'
