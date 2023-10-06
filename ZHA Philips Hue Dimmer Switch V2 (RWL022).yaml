@@ -17,7 +17,7 @@ blueprint:
       selector:
         entity:
           domain: light
-          multiple: true
+          multiple: false
     last_scene:
       name: Last scene dropdown helper
       description: Please select a Dropdown Helper to be used to record the last scene.
