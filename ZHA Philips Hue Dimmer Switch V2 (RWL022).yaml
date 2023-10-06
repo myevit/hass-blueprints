@@ -148,8 +148,8 @@ action:
               entity_id: !input 'last_scene'
   - delay:
       hours: 0
-      minutes: 5
-      seconds: 0
+      minutes: 0
+      seconds: 10
       milliseconds: 0
   - service: input_select.select_first
     target:
