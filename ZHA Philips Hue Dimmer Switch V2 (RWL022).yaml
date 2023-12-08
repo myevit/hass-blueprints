@@ -11,9 +11,17 @@ blueprint:
           integration: zha
           model: RWL022
           multiple: false
+    main_scene:
+      name: Main Scene
+      description: Scene will be active on top press
+      selector:
+        entity:
+          filter:
+            domain: scene
+          multiple: false
     light:
       name: Lights
-      description: The lights to control
+      description: The lights to control with + and -
       selector:
         entity:
           domain: light
@@ -23,8 +31,7 @@ blueprint:
       description: Please select a Dropdown Helper to be used to record the last scene.
       selector:
         entity:
-          domain:
-          - input_select
+          domain: input_select
           multiple: false
 mode: restart
 max_exceeded: silent
@@ -41,9 +48,26 @@ action:
   - choose:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
-          - service: light.toggle
-            target:
-              entity_id: !input 'light'
+          - choose:
+              - conditions: "{{ is_state(target_lights, 'on') }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input 'light'
+              - conditions: "{{ is_state(target_lights, 'off') }}"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: !input 'main_scene'
+
+
+      - conditions: "{{ command == 'on_double_press' }}"
+        sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: !input 'main_scene'
+
+
       - conditions: "{{ command == 'up_hold' }}"
         sequence:
           - repeat:
@@ -62,6 +86,8 @@ action:
           - service: light.turn_on
             target:
               entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
+
+
       - conditions: "{{ command == 'up_press' }}"
         sequence:
           - delay:
@@ -74,6 +100,8 @@ action:
               entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
             data: 
               brightness_step_pct: 20
+
+
       - conditions: "{{ command == 'up_double_press' }}"
         sequence:
           - service: light.turn_on
@@ -81,6 +109,8 @@ action:
               entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
             data: 
               brightness_pct: 100
+
+
       - conditions: "{{ command == 'down_hold' }}"
         sequence:
           - repeat:
@@ -107,6 +137,7 @@ action:
                           data: 
                             brightness_pct: 1
 
+
       - conditions: "{{ command == 'down_press' }}"
         sequence:
         - choose:
@@ -129,6 +160,8 @@ action:
                     entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                   data: 
                     brightness_pct: 1
+
+
       - conditions: "{{ command == 'down_double_press' }}"
         sequence:
           - service: light.turn_on
@@ -136,6 +169,8 @@ action:
               entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
             data: 
               brightness_pct: 1
+
+              
       - conditions: "{{ command == 'off_press' }}"
         sequence:
           - service: scene.turn_on
