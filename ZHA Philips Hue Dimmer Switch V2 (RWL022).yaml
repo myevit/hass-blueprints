@@ -102,38 +102,25 @@ action:
       target_lights: !input light
       hold_press_change: !input hold_press_change
   - choose:
-      # - conditions:
-      #   - '{{ command == ''on_press'' }}'
-      #   sequence:
-      #   - choose:
-      #     - conditions: '{{ is_state(target_lights, ''on'') }}'
-      #       sequence:
-      #       - service: light.turn_off
-      #         target:
-      #           entity_id: !input light
-      #     - conditions: '{{ is_state(target_lights, ''off'') }}'
-      #       sequence:
-      #       - service: scene.turn_on
-      #         target:
-      #           entity_id: !input main_scene
       - conditions:
-          - "{{ command == 'on' }}"
+          - "{{ command == 'on' or command == 'off_with_effect' }}"
         sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input main_scene
-      - conditions:
-          - "{{ command == 'off_with_effect' }}"
-        sequence:
-          - service: light.turn_off
-            target:
-              entity_id: !input light
-
-      - conditions: "{{ command == 'off_double_press' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input main_scene
+          - choose:
+              - conditions: "{{ states(target_lights) == 'off' }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: !input light
+                    data:
+                      brightness_pct: 100
+                      transition: !input transition_time
+              - conditions: "{{ states(target_lights) == 'on' }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input light
+                    data:
+                      transition: !input transition_time
       - conditions:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
