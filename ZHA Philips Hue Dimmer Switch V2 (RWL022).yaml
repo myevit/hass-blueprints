@@ -83,7 +83,7 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
-mode: parallel
+mode: restart
 max_exceeded: silent
 trigger:
   - platform: event
@@ -96,6 +96,7 @@ action:
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
+      main_scene: !input main_scene
       active_scene:
         "{{ iif(states(scene_helper) | int(0) >= included_scenes | count,
         0, states(scene_helper)) | int(0) }}"
@@ -108,11 +109,10 @@ action:
           - choose:
               - conditions: "{{ states(target_lights) == 'off' }}"
                 sequence:
-                  - service: light.turn_on
+                  - service: scene.turn_on
                     target:
-                      entity_id: !input light
+                      entity_id: !input main_scene
                     data:
-                      brightness_pct: 100
                       transition: !input transition_time
               - conditions: "{{ states(target_lights) == 'on' }}"
                 sequence:
@@ -205,9 +205,7 @@ action:
           - service: scene.turn_on
             data_template:
               transition: !input transition_time
-              entity_id: "{{ included_scenes[active_scene] }}
-
-                "
+              entity_id: "{{ included_scenes[active_scene] }}"
           - service: input_number.set_value
             target:
               entity_id: !input scene_helper
