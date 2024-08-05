@@ -113,42 +113,32 @@ action:
                       entity_id: !input light
                     data:
                       brightness_pct: 100
-                      transition: !input transition_time
               - conditions: "{{ states(target_lights) == 'on' }}"
                 sequence:
                   - service: light.turn_off
                     target:
                       entity_id: !input light
-                    data:
-                      transition: !input transition_time
       - conditions:
-          - "{{ command == 'up_hold' or command == 'up_press'}}"
+          - "{{ command == 'off_double_press' }}"
         sequence:
-          - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  <= 255 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_step_pct: "{{ hold_press_change }}"
-                      transition: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  > 255 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_pct: 100
-                      transition: !input transition_time
+          - service: scene.turn_on
+            target:
+              entity_id: !input main_scene
+      - conditions:
+          - "{{ command == 'up_hold' or command == 'up_press' }}"
+        sequence:
+          - repeat:
+              while: >
+                {{ (state_attr(target_lights, 'brightness') | int + (hold_press_change / 100 * 254) | round) <= 255 }}
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id: >
+                      {{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
+                  data:
+                    brightness_step_pct: "{{ hold_press_change }}"
+                    transition: 0.1
+                - delay: 00:00:00.1
       - conditions: "{{ command == 'up_double_press' }}"
         sequence:
           - service: light.turn_on
@@ -174,7 +164,8 @@ action:
                         | map(attribute='entity_id') | list }}"
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
-                      transition: !input transition_time
+                      transition: 0.1
+                  - delay: 00:00:00.1
               - conditions:
                   "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
                   | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
@@ -187,7 +178,8 @@ action:
                         | map(attribute='entity_id') | list }}"
                     data:
                       brightness_pct: 1
-                      transition: !input transition_time
+                      transition: 0.1
+                  - delay: 00:00:00.1
       - conditions: "{{ command == 'down_double_press' }}"
         sequence:
           - service: light.turn_on
