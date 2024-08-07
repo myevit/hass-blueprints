@@ -72,37 +72,37 @@ blueprint:
             - label: Dynamic Nighttime
               value: >
                 {
-                  "preset_id": "Nighttime",
+                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
                   "type": "dynamic"
                 }
             - label: Dynamic Sleepy
               value: >
                 {
-                  "preset_id": "Sleepy",
+                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
                   "type": "dynamic"
                 }
             - label: Dynamic Unwind
               value: >
                 {
-                  "preset_id": "Unwind",
+                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
                   "type": "dynamic"
                 }
             - label: Dynamic Storybook
               value: >
                 {
-                  "preset_id": "Storybook",
+                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
                   "type": "dynamic"
                 }
             - label: Dynamic Shine
               value: >
                 {
-                  "preset_id": "Shine",
+                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
                   "type": "dynamic"
                 }
             - label: Dynamic Arise
               value: >
                 {
-                  "preset_id": "Arise",
+                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
                   "type": "dynamic"
                 }
           multiple: true
