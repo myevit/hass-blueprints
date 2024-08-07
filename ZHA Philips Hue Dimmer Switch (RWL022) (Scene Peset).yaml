@@ -72,7 +72,7 @@ blueprint:
           multiple: true
     dynamic_transition:
       name: Dynamic Transition
-      description: Transition time when changes
+      description: Transition time between changes of the dynamic colour states
       default: 45
       selector:
         number:
@@ -83,7 +83,7 @@ blueprint:
           mode: slider
     dynamic_interval:
       name: Dynamic Interval
-      description: Transition time when changes
+      description: Time between changes of the dynamic colour states
       default: 60
       selector:
         number:
@@ -102,7 +102,7 @@ blueprint:
           multiple: false
     transition_time:
       name: Transition Time
-      description: Transition time when changes
+      description: Transition time between changes of the light state (appied on ON/OFF/+/-)
       default: 0.7
       selector:
         number:
@@ -113,7 +113,7 @@ blueprint:
           mode: slider
     hold_press_change:
       name: Hold Press Change
-      description: Transition time between changes
+      description: Transition step between changes of the light state (appied on ON/OFF/+/-)
       default: 18
       selector:
         number:
