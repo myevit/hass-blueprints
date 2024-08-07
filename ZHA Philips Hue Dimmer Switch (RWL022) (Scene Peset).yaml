@@ -125,7 +125,6 @@ action:
                 {{ {"scene": 1, "timestamp": as_timestamp(now())} | to_json }}
           - variables:
               current_scene: 1
-  - choose:
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
