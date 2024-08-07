@@ -247,13 +247,24 @@ action:
               transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: scene_presets.apply_preset
-            data:
-              preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
-              targets:
-                entity_id: !input light
-              shuffle: false
-              smart_shuffle: false
+          - conditions: "{{ (included_scenes[current_preset] | from_json).preset_id  == 'static' }}"
+            sequence:
+              - service: scene_presets.apply_preset
+                data:
+                  preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
+                  targets:
+                    entity_id: !input light
+                  shuffle: false
+                  smart_shuffle: false
+          - conditions: "{{ (included_scenes[current_preset] | from_json).preset_id  == 'dynamic' }}"
+            sequence:
+              - service: scene_presets.start_dynamic_scene
+                data:
+                  preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
+                  targets:
+                    entity_id: !input light
+                  transition: 45
+                  interval: 60
           - service: input_text.set_value
             target:
               entity_id: !input scene_helper
