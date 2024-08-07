@@ -1,6 +1,6 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Peset)
-  description: Control lights with a Philips Hue Dimmer Switch. Scene Peset integration is Required https://github.com/Hypfer/hass-scene_presets
+  name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
+  description: Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
     dimmer_switch:
@@ -21,7 +21,7 @@ blueprint:
           multiple: false
     included_scenes:
       name: Hue Button Scenes
-      description: Scenes to be included. First scene will be used only for main ON button.
+      description: Scenes to be included. The first scene will be used only for the main ON button.
       default: []
       selector:
         select:
@@ -44,14 +44,14 @@ blueprint:
           multiple: true
     scene_helper:
       name: Scene Helper
-      description: Input text helper to store the scene sequence in JSON format with timestamp
+      description: Please select an Input Text Helper to be used to record the scene sequence in JSON format with timestamp.
       selector:
         entity:
           domain:
             - input_text
           multiple: false
     transition_time:
-      name: Transition time
+      name: Transition Time
       description: Transition time when changes
       default: 1
       selector:
@@ -62,7 +62,7 @@ blueprint:
           unit_of_measurement: sec
           mode: slider
     hold_press_change:
-      name: Hold press change
+      name: Hold Press Change
       description: Transition time between changes
       default: 17
       selector:
@@ -74,9 +74,7 @@ blueprint:
           mode: slider
     reset_after:
       name: Reset After
-      description:
-        Timeout can be set after which the order is reset to the first
-        scene.
+      description: Timeout in seconds after which the order is reset to the first scene.
       default: 5
       selector:
         number:
@@ -101,9 +99,8 @@ action:
       target_lights: !input light
       hold_press_change: !input hold_press_change
       helper_data: "{{ states(scene_helper) | from_json }}"
-      current_scene: "{{ (helper_data.scene | int(0)) if helper_data is defined else 0 }}"
+      current_scene: "{{ (helper_data.scene | int(0)) if helper_data is defined else 1 }}"
       last_update: "{{ (helper_data.timestamp | as_timestamp) if helper_data is defined else 0 }}"
-
   - choose:
       - conditions:
           - "{{ (as_timestamp(now()) - last_update) > reset_after }}"
@@ -113,9 +110,9 @@ action:
               entity_id: !input scene_helper
             data:
               value: >
-                {{ {"scene": 0, "timestamp": as_timestamp(now())} | to_json }}
+                {{ {"scene": 1, "timestamp": as_timestamp(now())} | to_json }}
           - variables:
-              current_scene: 0
+              current_scene: 1
   - choose:
       - conditions:
           - "{{ command == 'on_press' }}"
@@ -228,10 +225,13 @@ action:
               transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: scene.turn_on
-            data_template:
-              transition: !input transition_time
-              entity_id: "{{ included_scenes[current_scene] }}"
+          - service: scene_presets.apply_preset
+            data:
+              preset_id: "{{ included_scenes[current_scene] }}"
+              targets:
+                entity_id: !input light
+              shuffle: false
+              smart_shuffle: false
           - service: input_text.set_value
             target:
               entity_id: !input scene_helper
