@@ -98,15 +98,21 @@ action:
       reset_after: !input reset_after
       target_lights: !input light
       hold_press_change: !input hold_press_change
-      helper_data: >
+      current_scene: >
         {% set data = states(scene_helper) %}
         {% if data != "unknown" %}
-          {{ data | from_json }}
+          {{ (data | from_json).scene }}
         {% else %}
-          { "scene": 1, "timestamp": {{as_timestamp(now())}} }
+          1
         {% endif %}
-      current_scene: "{{ (helper_data.scene | int(0)) }}"
-      last_update: "{{ (helper_data.timestamp | as_timestamp) }}"
+      last_update: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {{ (data | from_json).timestamp }}
+        {% else %}
+          {{as_timestamp(now())}}
+        {% endif %}
+
   - choose:
       - conditions:
           - "{{ (as_timestamp(now()) - last_update) > reset_after }}"
