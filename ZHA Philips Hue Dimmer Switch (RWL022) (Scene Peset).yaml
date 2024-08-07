@@ -164,7 +164,7 @@ action:
           - "{{ command == 'on_press' }}"
         sequence:
           - choose:
-              - conditions: "{{ states(target_lights) == 'off' }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
                   - service: scene_presets.apply_preset
                     data:
@@ -173,7 +173,7 @@ action:
                         entity_id: !input light
                       shuffle: false
                       smart_shuffle: false
-              - conditions: "{{ states(target_lights) == 'on' }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
                   - service: light.turn_off
                     target:
