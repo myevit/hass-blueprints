@@ -70,6 +70,28 @@ blueprint:
                   "type": "dynamic"
                 }
           multiple: true
+    dynamic_transition:
+      name: Dynamic Transition
+      description: Transition time when changes
+      default: 45
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 1
+          unit_of_measurement: sec
+          mode: slider
+    dynamic_interval:
+      name: Dynamic Interval
+      description: Transition time when changes
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 1
+          unit_of_measurement: sec
+          mode: slider
     scene_helper:
       name: Scene Helper
       description: Please select an Input Text Helper to be used to record the scene sequence in JSON format with timestamp.
@@ -276,8 +298,8 @@ action:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
                         entity_id: !input light
-                      transition: 45
-                      interval: 60
+                      transition: !input dynamic_transition
+                      interval: !input dynamic_interval
           - service: input_text.set_value
             target:
               entity_id: !input scene_helper
