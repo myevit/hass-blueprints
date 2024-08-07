@@ -83,7 +83,7 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
-mode: restart
+mode: parallel
 max_exceeded: silent
 trigger:
   - platform: event
