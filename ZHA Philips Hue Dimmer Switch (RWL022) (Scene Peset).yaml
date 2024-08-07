@@ -103,7 +103,7 @@ action:
         {% if data != "unknown" %}
           {{ data | from_json }}
         {% else %}
-          { "scene": 1, "timestamp": 0 }
+          { "scene": 1, "timestamp": {{as_timestamp(now())}} }
         {% endif %}
       current_scene: "{{ (helper_data.scene | int(0)) if helper_data is defined else 1 }}"
       last_update: "{{ (helper_data.timestamp | as_timestamp) if helper_data is defined else 0 }}"
