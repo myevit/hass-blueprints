@@ -250,9 +250,3 @@ action:
             data:
               value: >
                 {{ {"scene": (current_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
-  - service: input_text.set_value
-    target:
-      entity_id: !input scene_helper
-    data:
-      value: >
-        {{ {"scene": current_scene, "timestamp": as_timestamp(now())} | to_json }}
