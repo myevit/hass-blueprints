@@ -194,7 +194,6 @@ action:
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
                       transition: !input transition_time
-                  - delay: !input transition_time
               - conditions:
                   "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
                   | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
@@ -208,7 +207,6 @@ action:
                     data:
                       brightness_pct: 1
                       transition: !input transition_time
-                  - delay: !input transition_time
       - conditions: "{{ command == 'down_double_press' }}"
         sequence:
           - service: light.turn_on
