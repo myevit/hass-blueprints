@@ -13,12 +13,12 @@ blueprint:
           multiple: false
     light:
       name: Lights
-      description: The lights to control with + / - and to turn off
+      description: The lights to control
       selector:
         entity:
           domain:
             - light
-          multiple: false
+          multiple: true
     included_scenes:
       name: Hue Button Scenes
       description: Scenes to be included. The first scene will be used only for the main ON button.
