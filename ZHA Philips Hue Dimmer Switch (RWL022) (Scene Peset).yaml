@@ -198,7 +198,7 @@ action:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
           - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -208,7 +208,7 @@ action:
                     data:
                       brightness_step_pct: "{{ hold_press_change }}"
                       transition: !input transition_time
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
