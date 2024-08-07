@@ -99,8 +99,8 @@ action:
       target_lights: !input light
       hold_press_change: !input hold_press_change
       helper_data: >
-        {% set data = states(scene_helper).state %}
-        {% if data != "" %}
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
           {{ data | from_json }}
         {% else %}
           { "scene": 1, "timestamp": 0 }
