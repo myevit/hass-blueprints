@@ -29,46 +29,46 @@ blueprint:
           options:
             - label: Rest
               value: >
-                "{
+                {{{
                   "preset_id": "e03267e7-9914-4f47-97fe-63c0bd317fe7",
                   "type": "static",
-                }"
+                }}}
             - label: Relax
               value: >
-                "{
+                {{{
                   "preset_id": "e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8",
                   "type": "static",
-                }"
+                }}}
             - label: Read
               value: >
-                "{
+                {{{
                   "preset_id": "035b6ecf-414e-4781-abc7-3911556097cb",
                   "type": "static",
-                }"
+                }}}
             - label: Concentrate
               value: >
-                "{
+                {{{
                   "preset_id": "0cbec4e8-d064-4457-986a-fe6078a63f39",
                   "type": "static",
-                }"
+                }}}
             - label: Bright
               value: >
-                "{
+                {{{
                   "preset_id": "6d10a807-7330-46d1-b093-c15520ba72c0",
                   "type": "static",
-                }"
+                }}}
             - label: Dimmed
               value: >
-                "{
+                {{{
                   "preset_id": "8f55e62a-e5f8-456a-9e8b-61f314bd4e99",
                   "type": "static",
-                }"
+                }}}
             - label: Galaxy
               value: >
-                "{
+                {{{
                   "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
                   "type": "dynamic",
-                }"
+                }}}
           multiple: true
     scene_helper:
       name: Scene Helper
