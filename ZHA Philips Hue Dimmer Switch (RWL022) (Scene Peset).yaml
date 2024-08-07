@@ -98,7 +98,13 @@ action:
       reset_after: !input reset_after
       target_lights: !input light
       hold_press_change: !input hold_press_change
-      helper_data: "{{ states(scene_helper) | from_json }}"
+      helper_data: >
+        {% set data = states(scene_helper).state %}
+        {% if data != "" %}
+          {{ data | from_json }}
+        {% else %}
+          { "scene": 1, "timestamp": 0 }
+        {% endif %}
       current_scene: "{{ (helper_data.scene | int(0)) if helper_data is defined else 1 }}"
       last_update: "{{ (helper_data.timestamp | as_timestamp) if helper_data is defined else 0 }}"
   - choose:
