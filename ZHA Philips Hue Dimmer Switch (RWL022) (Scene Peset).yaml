@@ -69,6 +69,42 @@ blueprint:
                   "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
                   "type": "dynamic"
                 }
+            - label: Dynamic Nighttime
+              value: >
+                {
+                  "preset_id": "Nighttime",
+                  "type": "dynamic"
+                }
+            - label: Dynamic Sleepy
+              value: >
+                {
+                  "preset_id": "Sleepy",
+                  "type": "dynamic"
+                }
+            - label: Dynamic Unwind
+              value: >
+                {
+                  "preset_id": "Unwind",
+                  "type": "dynamic"
+                }
+            - label: Dynamic Storybook
+              value: >
+                {
+                  "preset_id": "Storybook",
+                  "type": "dynamic"
+                }
+            - label: Dynamic Shine
+              value: >
+                {
+                  "preset_id": "Shine",
+                  "type": "dynamic"
+                }
+            - label: Dynamic Arise
+              value: >
+                {
+                  "preset_id": "Arise",
+                  "type": "dynamic"
+                }
           multiple: true
     dynamic_transition:
       name: Dynamic Transition
