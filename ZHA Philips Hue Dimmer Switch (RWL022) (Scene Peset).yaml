@@ -198,9 +198,7 @@ action:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
           - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  <= 255 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -210,9 +208,7 @@ action:
                     data:
                       brightness_step_pct: "{{ hold_press_change }}"
                       transition: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  > 255 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -236,9 +232,7 @@ action:
           - "{{ command == 'down_hold' or command == 'down_press' }}"
         sequence:
           - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  >= hold_press_change }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', 1) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -248,10 +242,7 @@ action:
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
                       transition: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
-                  - ((hold_press_change/100)*254) | round)  >= 1}}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'le', 1) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
