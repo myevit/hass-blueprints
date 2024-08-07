@@ -28,19 +28,47 @@ blueprint:
           mode: dropdown
           options:
             - label: Rest
-              value: e03267e7-9914-4f47-97fe-63c0bd317fe7
+              value:
+                {
+                  "preset_id": "e03267e7-9914-4f47-97fe-63c0bd317fe7",
+                  "type": "static",
+                }
             - label: Relax
-              value: e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8
+              value:
+                {
+                  "preset_id": "e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8",
+                  "type": "static",
+                }
             - label: Read
-              value: 035b6ecf-414e-4781-abc7-3911556097cb
+              value:
+                {
+                  "preset_id": "035b6ecf-414e-4781-abc7-3911556097cb",
+                  "type": "static",
+                }
             - label: Concentrate
-              value: 0cbec4e8-d064-4457-986a-fe6078a63f39
+              value:
+                {
+                  "preset_id": "0cbec4e8-d064-4457-986a-fe6078a63f39",
+                  "type": "static",
+                }
             - label: Bright
-              value: 6d10a807-7330-46d1-b093-c15520ba72c0
+              value:
+                {
+                  "preset_id": "6d10a807-7330-46d1-b093-c15520ba72c0",
+                  "type": "static",
+                }
             - label: Dimmed
-              value: 8f55e62a-e5f8-456a-9e8b-61f314bd4e99
+              value:
+                {
+                  "preset_id": "8f55e62a-e5f8-456a-9e8b-61f314bd4e99",
+                  "type": "static",
+                }
             - label: Galaxy
-              value: a6ba3a6e-1e3a-41fd-84f2-f7b021935deb
+              value:
+                {
+                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
+                  "type": "dynamic",
+                }
           multiple: true
     scene_helper:
       name: Scene Helper
@@ -98,7 +126,7 @@ action:
       reset_after: !input reset_after
       target_lights: !input light
       hold_press_change: !input hold_press_change
-      current_scene: >
+      current_preset: >
         {% set data = states(scene_helper) %}
         {% if data != "unknown" %}
           {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
@@ -118,7 +146,7 @@ action:
                 sequence:
                   - service: scene_presets.apply_preset
                     data:
-                      preset_id: "{{ included_scenes[0] }}"
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
                         entity_id: !input light
                       shuffle: false
@@ -135,7 +163,7 @@ action:
         sequence:
           - service: scene_presets.apply_preset
             data:
-              preset_id: "{{ included_scenes[0] }}"
+              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
               targets:
                 entity_id: !input light
               shuffle: false
@@ -221,7 +249,7 @@ action:
         sequence:
           - service: scene_presets.apply_preset
             data:
-              preset_id: "{{ included_scenes[current_scene] }}"
+              preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
               targets:
                 entity_id: !input light
               shuffle: false
@@ -231,4 +259,4 @@ action:
               entity_id: !input scene_helper
             data:
               value: >
-                {{ {"scene": (current_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+                {{ {"scene": (current_preset + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
