@@ -53,7 +53,7 @@ blueprint:
     transition_time:
       name: Transition Time
       description: Transition time when changes
-      default: 0.8
+      default: 0.7
       selector:
         number:
           min: 0.0
@@ -64,7 +64,7 @@ blueprint:
     hold_press_change:
       name: Hold Press Change
       description: Transition time between changes
-      default: 15
+      default: 18
       selector:
         number:
           min: 0.0
