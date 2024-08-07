@@ -101,30 +101,16 @@ action:
       current_scene: >
         {% set data = states(scene_helper) %}
         {% if data != "unknown" %}
-          {{ (data | from_json).scene }}
+          {% if (as_timestamp(now()) - 1723005766.599826 ) < 5 %}
+            {{ (data | from_json).scene }}
+          {% else %}
+          1
+          {% endif %}
         {% else %}
           1
         {% endif %}
-      last_update: >
-        {% set data = states(scene_helper) %}
-        {% if data != "unknown" %}
-          {{ (data | from_json).timestamp }}
-        {% else %}
-          {{as_timestamp(now())}}
-        {% endif %}
 
   - choose:
-      - conditions:
-          - "{{ (as_timestamp(now()) - last_update) > reset_after }}"
-        sequence:
-          - service: input_text.set_value
-            target:
-              entity_id: !input scene_helper
-            data:
-              value: >
-                {{ {"scene": 1, "timestamp": as_timestamp(now())} | to_json }}
-          - variables:
-              current_scene: 1
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
