@@ -225,6 +225,12 @@ action:
                         entity_id: !input light
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
+          - service: input_text.set_value
+            target:
+              entity_id: !input scene_helper
+            data:
+              value: >
+                {{ {"scene": (current_preset + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
       - conditions:
           - "{{ command == 'off' }}"
         sequence:
@@ -285,9 +291,3 @@ action:
                     data:
                       brightness_pct: 1
                       transition: !input transition_time
-          - service: input_text.set_value
-            target:
-              entity_id: !input scene_helper
-            data:
-              value: >
-                {{ {"scene": (current_preset + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
