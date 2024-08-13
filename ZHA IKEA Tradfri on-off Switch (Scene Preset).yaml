@@ -249,7 +249,7 @@ action:
           - repeat:
               while:
                 - condition: template
-                  value_template: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255) | list | length > 0 }}"
+                  value_template: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', '==', 255) | list | length > 0 }}"
               sequence:
                 - choose:
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
@@ -280,7 +280,7 @@ action:
           - repeat:
               while:
                 - condition: template
-                  value_template: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', 0) | list | length > 0 }}"
+                  value_template: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', 1) | list | length > 0 }}"
               sequence:
                 - choose:
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
@@ -301,7 +301,7 @@ action:
                               "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
                               | map(attribute='entity_id') | list }}"
                           data:
-                            brightness_pct: 0
+                            brightness_pct: 1
                             transition: !input transition_time
                 - delay:
                     seconds: !input transition_time
