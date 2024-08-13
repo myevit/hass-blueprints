@@ -177,10 +177,12 @@ trigger:
   - platform: event
     event_type: zha_event
     event_data:
-      command: []
-  - platform: template
-    value_template: >
-      {{ trigger.event.data.device_id in (dimmer_switches | map(attribute='device_id') | list) }}
+      device_id:
+        {
+          {
+            trigger.event.data.device_id in (dimmer_switches | map(attribute='device_id') | list),
+          },
+        }
 action:
   - variables:
       command: "{{ trigger.event.data.command }}"
