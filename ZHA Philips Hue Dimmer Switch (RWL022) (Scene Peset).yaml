@@ -10,7 +10,7 @@ blueprint:
         device:
           integration: zha
           model: RWL022
-          multiple: true
+          multiple: false
     light:
       name: Lights
       description: The lights to control
@@ -172,14 +172,10 @@ blueprint:
 mode: queued
 max_exceeded: silent
 trigger:
-  - variables:
-    dimmer_switches: !input dimmer_switch
   - platform: event
     event_type: zha_event
     event_data:
-      device_id: template
-      value_template: >
-        {{ trigger.event.data.device_id in (dimmer_switches) }}
+      device_id: !input dimmer_switch
 action:
   - variables:
       command: "{{ trigger.event.data.command }}"
