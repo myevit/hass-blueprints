@@ -178,10 +178,9 @@ trigger:
       command: []
   - platform: template
     value_template: >
-      {{ trigger.event.data.device_id in (dimmer_switches) }}
+      {{ trigger.event.data.device_id in (input.dimmer_switch) }}
 action:
   - variables:
-      dimmer_switches: !input dimmer_switch
       command: "{{ trigger.event.data.command }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
