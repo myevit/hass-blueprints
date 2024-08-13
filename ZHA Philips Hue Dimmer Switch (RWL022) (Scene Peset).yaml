@@ -10,7 +10,7 @@ blueprint:
         device:
           integration: zha
           model: RWL022
-          multiple: false
+          multiple: true
     light:
       name: Lights
       description: The lights to control
