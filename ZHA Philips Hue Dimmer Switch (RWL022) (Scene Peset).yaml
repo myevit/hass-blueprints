@@ -175,9 +175,13 @@ trigger:
   - platform: event
     event_type: zha_event
     event_data:
-      device_id: !input dimmer_switch
+      command: []
+  - platform: template
+    value_template: >
+      {{ trigger.event.data.device_id in (dimmer_switches) }}
 action:
   - variables:
+      dimmer_switches: !input dimmer_switch
       command: "{{ trigger.event.data.command }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
