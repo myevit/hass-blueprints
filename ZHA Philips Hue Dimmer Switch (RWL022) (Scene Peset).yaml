@@ -179,7 +179,7 @@ trigger:
     event_data:
       device_id: template
       value_template: >
-        {{ trigger.event.data.device_id in (dimmer_switch | map(attribute='device_id') | list) }}
+        {{ trigger.event.data.device_id in (dimmer_switches | map(attribute='device_id') | list) }}
 action:
   - variables:
       command: "{{ trigger.event.data.command }}"
