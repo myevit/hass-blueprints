@@ -171,9 +171,9 @@ blueprint:
           mode: slider
 mode: queued
 max_exceeded: silent
-variables:
-  dimmer_switches: !input dimmer_switch
 trigger:
+  - variables:
+    dimmer_switches: !input dimmer_switch
   - platform: event
     event_type: zha_event
     event_data:
