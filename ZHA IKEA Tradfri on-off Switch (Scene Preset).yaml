@@ -195,16 +195,16 @@ action:
         {% else %}
           0
         {% endif %}
+  - service: scene_presets.stop_dynamic_scenes_for_targets
+    data:
+      targets:
+        entity_id: !input light
   - choose:
       - conditions: "{{ command == 'on' }}"
         sequence:
           - choose:
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
                 sequence:
-                  - service: scene_presets.stop_dynamic_scenes_for_targets
-                    data:
-                      targets:
-                        entity_id: !input light
                   - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
@@ -214,10 +214,6 @@ action:
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'dynamic' }}"
                 sequence:
-                  - service: scene_presets.stop_dynamic_scenes_for_targets
-                    data:
-                      targets:
-                        entity_id: !input light
                   - service: scene_presets.start_dynamic_scene
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
@@ -239,10 +235,6 @@ action:
               entity_id: !input light
             data:
               transition: !input transition_time
-          - service: scene_presets.stop_dynamic_scenes_for_targets
-            data:
-              targets:
-                entity_id: !input light
       - conditions:
           - "{{ command == 'move_with_on_off' }}"
         sequence:
