@@ -195,10 +195,6 @@ action:
         {% else %}
           1
         {% endif %}
-  - service: scene_presets.stop_dynamic_scenes_for_targets
-    data:
-      targets:
-        entity_id: !input light
   - choose:
       - conditions:
           - "{{ command == 'on_press' }}"
@@ -220,16 +216,36 @@ action:
                       entity_id: !input light
                     data:
                       transition: !input transition_time
+                  - service: scene_presets.stop_dynamic_scenes_for_targets
+                    data:
+                      targets:
+                        entity_id: !input light
       - conditions:
           - "{{ command == 'on_double_press' }}"
         sequence:
-          - service: scene_presets.apply_preset
+          - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
-              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
               targets:
                 entity_id: !input light
-              shuffle: false
-              smart_shuffle: false
+          - choose:
+              - conditions: "{{ (included_scenes[0] | from_json).type == 'static' }}"
+                sequence:
+                  - service: scene_presets.apply_preset
+                    data:
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
+                      targets:
+                        entity_id: !input light
+                      shuffle: false
+                      smart_shuffle: false
+              - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
+                sequence:
+                  - service: scene_presets.start_dynamic_scene
+                    data:
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
+                      targets:
+                        entity_id: !input light
+                      transition: !input dynamic_transition
+                      interval: !input dynamic_interval
       - conditions:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
@@ -300,6 +316,10 @@ action:
               transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
+          - service: scene_presets.stop_dynamic_scenes_for_targets
+            data:
+              targets:
+                entity_id: !input light
           - choose:
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
                 sequence:
