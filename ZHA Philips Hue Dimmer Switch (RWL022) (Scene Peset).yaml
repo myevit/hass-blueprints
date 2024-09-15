@@ -169,6 +169,24 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
+    tv_entity:
+      name: TV Entity
+      description: The TV entity to check (optional)
+      default: ""
+      selector:
+        entity:
+          domain:
+            - media_player
+          multiple: false
+    lights_when_tv_on:
+      name: Lights When TV On
+      description: The lights to control when the TV is on (optional)
+      default: []
+      selector:
+        entity:
+          domain:
+            - light
+          multiple: true
 mode: queued
 max_exceeded: silent
 trigger:
@@ -182,7 +200,14 @@ action:
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
-      target_lights: !input light
+      tv_entity: !input tv_entity
+      lights_when_tv_on: !input lights_when_tv_on
+      target_lights: >
+        {% if tv_entity and is_state(tv_entity, 'on') and lights_when_tv_on %}
+          {{ lights_when_tv_on }}
+        {% else %}
+          {{ light }}
+        {% endif %}
       hold_press_change: !input hold_press_change
       current_preset: >
         {% set data = states(scene_helper) %}
