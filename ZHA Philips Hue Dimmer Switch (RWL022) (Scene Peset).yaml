@@ -2,7 +2,7 @@ blueprint:
   name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
-    Version 1.6.0
+    Version 1.7.0
   domain: automation
   input:
     dimmer_switch:
@@ -188,6 +188,12 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
+    tv_time_start:
+      name: TV Time Start
+      description: Start time for TV-based logic (optional, format HH:MM)
+      default: ""
+      selector:
+        time:
 mode: queued
 max_exceeded: silent
 trigger:
@@ -204,11 +210,24 @@ action:
       tv_entity: !input tv_entity
       lights_when_tv_on: !input lights_when_tv_on
       all_lights: !input light
+      tv_time_start: !input tv_time_start
+      tv_time_end: "03:00"
+      is_tv_time: >
+        {% set now = now().strftime('%H:%M') %}
+        {% if tv_time_start and tv_time_end %}
+          {% if tv_time_start <= tv_time_end %}
+            {{ now >= tv_time_start and now < tv_time_end }}
+          {% else %}
+            {{ now >= tv_time_start or now < tv_time_end }}
+          {% endif %}
+        {% else %}
+          true
+        {% endif %}
       target_lights: >
         {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
         {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
-        {% if tv_on and valid_tv_lights %}
+        {% if tv_on and valid_tv_lights and is_tv_time %}
           {{ valid_tv_lights }}
         {% elif valid_all_lights %}
           {{ valid_all_lights }}
@@ -219,7 +238,7 @@ action:
         {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
         {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
-        {% if tv_on and valid_tv_lights %}
+        {% if tv_on and valid_tv_lights and is_tv_time %}
           {{ valid_all_lights | reject('in', valid_tv_lights) | list }}
         {% else %}
           []
