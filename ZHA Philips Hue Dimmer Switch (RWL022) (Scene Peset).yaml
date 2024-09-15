@@ -2,7 +2,7 @@ blueprint:
   name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
-    Version 1.1.0
+    Version 1.1.1
   domain: automation
   input:
     dimmer_switch:
@@ -45,7 +45,7 @@ blueprint:
       default: []
       selector:
         select:
-          mode: dropdown
+          multiple: true
           options:
             - label: Static Rest
               value: >
