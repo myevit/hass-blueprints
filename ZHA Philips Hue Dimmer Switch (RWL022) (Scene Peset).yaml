@@ -208,9 +208,9 @@ action:
       all_lights: !input light
       target_lights: >
         {% if tv_entity and is_state(tv_entity, 'on') and lights_when_tv_on %}
-          {{ lights_when_tv_on }}
+          {{ lights_when_tv_on | select('string') | list }}
         {% else %}
-          {{ all_lights }}
+          {{ all_lights | select('string') | list }}
         {% endif %}
       hold_press_change: !input hold_press_change
       current_preset: >
@@ -230,16 +230,16 @@ action:
         sequence:
           - service: light.turn_off
             target:
-              entity_id: "{{ all_lights }}"
+              entity_id: "{{ all_lights | select('string') | list }}"
             data:
               transition: !input transition_time
           - choose:
               - conditions:
-                  - "{{ lights_when_tv_on | length > 0 }}"
+                  - "{{ lights_when_tv_on | select('string') | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
-                      entity_id: "{{ lights_when_tv_on }}"
+                      entity_id: "{{ lights_when_tv_on | select('string') | list }}"
                     data:
                       transition: !input transition_time
                       brightness: 128 # You can adjust this value as needed
