@@ -233,12 +233,16 @@ action:
               entity_id: "{{ all_lights }}"
             data:
               transition: !input transition_time
-          - service: light.turn_on
-            target:
-              entity_id: "{{ lights_when_tv_on }}"
-            data:
-              transition: !input transition_time
-              brightness: 128 # You can adjust this value as needed
+          - choose:
+              - conditions:
+                  - "{{ lights_when_tv_on | length > 0 }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ lights_when_tv_on }}"
+                    data:
+                      transition: !input transition_time
+                      brightness: 128 # You can adjust this value as needed
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
