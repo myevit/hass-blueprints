@@ -24,7 +24,7 @@ blueprint:
     tv_entity:
       name: TV Entity
       description: The TV entity to check (optional)
-      default: ""
+      default:
       selector:
         entity:
           domain:
@@ -195,9 +195,14 @@ trigger:
     event_type: zha_event
     event_data:
       device_id: !input dimmer_switch
-  - platform: state
-    entity_id: !input tv_entity
-    to: "on"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ tv_entity is not none and tv_entity != '' }}"
+        sequence:
+          - platform: state
+            entity_id: !input tv_entity
+            to: "on"
 action:
   - variables:
       command: "{{ trigger.event.data.command if trigger.event is defined else 'tv_on' }}"
@@ -208,7 +213,7 @@ action:
       lights_when_tv_on: !input lights_when_tv_on
       all_lights: !input light
       target_lights: >
-        {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
+        {% set tv_on = tv_entity and tv_entity != '' and is_state(tv_entity, 'on') %}
         {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights %}
@@ -219,7 +224,7 @@ action:
           []
         {% endif %}
       lights_to_turn_off: >
-        {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
+        {% set tv_on = tv_entity and tv_entity != '' and is_state(tv_entity, 'on') %}
         {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights %}
@@ -239,15 +244,25 @@ action:
         {% else %}
           1
         {% endif %}
+  - service: system_log.write
+    data:
+      message: "Debug - command: {{ command }}, target_lights: {{ target_lights }}, lights_to_turn_off: {{ lights_to_turn_off }}"
+      level: debug
+
   - choose:
       - conditions:
           - "{{ lights_to_turn_off | length > 0 }}"
         sequence:
+          - service: system_log.write
+            data:
+              message: "Attempting to turn off lights: {{ lights_to_turn_off }}"
+              level: debug
           - service: light.turn_off
             target:
               entity_id: "{{ lights_to_turn_off }}"
             data:
               transition: !input transition_time
+
   - choose:
       - conditions:
           - "{{ command == 'tv_on' }}"
@@ -257,12 +272,21 @@ action:
               entity_id: "{{ lights_to_turn_off }}"
             data:
               transition: !input transition_time
+
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
+          - service: system_log.write
+            data:
+              message: "On press detected. Target lights: {{ target_lights }}"
+              level: debug
           - choose:
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
+                  - service: system_log.write
+                    data:
+                      message: "Applying preset to lights: {{ target_lights }}"
+                      level: debug
                   - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
@@ -272,6 +296,10 @@ action:
                       smart_shuffle: false
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
+                  - service: system_log.write
+                    data:
+                      message: "Turning off lights: {{ target_lights }}"
+                      level: debug
                   - service: light.turn_off
                     target:
                       entity_id: "{{ target_lights }}"
@@ -281,6 +309,7 @@ action:
                     data:
                       targets:
                         entity_id: "{{ target_lights }}"
+
       - conditions:
           - "{{ command == 'on_double_press' }}"
         sequence:
