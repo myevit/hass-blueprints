@@ -244,19 +244,11 @@ action:
         {% else %}
           1
         {% endif %}
-  - service: system_log.write
-    data:
-      message: "Debug - command: {{ command }}, target_lights: {{ target_lights }}, lights_to_turn_off: {{ lights_to_turn_off }}"
-      level: debug
 
   - choose:
       - conditions:
           - "{{ lights_to_turn_off | length > 0 }}"
         sequence:
-          - service: system_log.write
-            data:
-              message: "Attempting to turn off lights: {{ lights_to_turn_off }}"
-              level: debug
           - service: light.turn_off
             target:
               entity_id: "{{ lights_to_turn_off }}"
@@ -276,17 +268,9 @@ action:
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
-          - service: system_log.write
-            data:
-              message: "On press detected. Target lights: {{ target_lights }}"
-              level: debug
           - choose:
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
-                  - service: system_log.write
-                    data:
-                      message: "Applying preset to lights: {{ target_lights }}"
-                      level: debug
                   - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
@@ -296,10 +280,6 @@ action:
                       smart_shuffle: false
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
-                  - service: system_log.write
-                    data:
-                      message: "Turning off lights: {{ target_lights }}"
-                      level: debug
                   - service: light.turn_off
                     target:
                       entity_id: "{{ target_lights }}"
