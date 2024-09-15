@@ -19,6 +19,24 @@ blueprint:
           domain:
             - light
           multiple: true
+    tv_entity:
+      name: TV Entity
+      description: The TV entity to check (optional)
+      default: ""
+      selector:
+        entity:
+          domain:
+            - media_player
+          multiple: false
+    lights_when_tv_on:
+      name: Lights When TV On
+      description: The lights to control when the TV is on (optional)
+      default: []
+      selector:
+        entity:
+          domain:
+            - light
+          multiple: true
     included_scenes:
       name: Hue Button Scenes
       description: Scenes to be included. The first scene will be used only for the main ON button.
@@ -169,24 +187,6 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
-    tv_entity:
-      name: TV Entity
-      description: The TV entity to check (optional)
-      default: ""
-      selector:
-        entity:
-          domain:
-            - media_player
-          multiple: false
-    lights_when_tv_on:
-      name: Lights When TV On
-      description: The lights to control when the TV is on (optional)
-      default: []
-      selector:
-        entity:
-          domain:
-            - light
-          multiple: true
 mode: queued
 max_exceeded: silent
 trigger:
