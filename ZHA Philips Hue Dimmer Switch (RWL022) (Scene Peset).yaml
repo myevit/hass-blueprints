@@ -216,6 +216,15 @@ action:
         {% else %}
           {{ valid_all_lights }}
         {% endif %}
+      lights_to_turn_off: >
+        {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
+        {% set valid_tv_lights = lights_when_tv_on | default([]) | select('string') | list %}
+        {% set valid_all_lights = all_lights | default([]) | select('string') | list %}
+        {% if tv_on and valid_tv_lights %}
+          {{ valid_all_lights | reject('in', valid_tv_lights) | list }}
+        {% else %}
+          []
+        {% endif %}
       hold_press_change: !input hold_press_change
       current_preset: >
         {% set data = states(scene_helper) %}
@@ -228,25 +237,20 @@ action:
         {% else %}
           1
         {% endif %}
+  - service: light.turn_off
+    target:
+      entity_id: "{{ lights_to_turn_off }}"
+    data:
+      transition: !input transition_time
   - choose:
       - conditions:
           - "{{ command == 'tv_on' }}"
         sequence:
           - service: light.turn_off
             target:
-              entity_id: "{{ all_lights | select('string') | list }}"
+              entity_id: "{{ lights_to_turn_off }}"
             data:
               transition: !input transition_time
-          - choose:
-              - conditions:
-                  - "{{ lights_when_tv_on is sequence and lights_when_tv_on | select('string') | list | length > 0 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id: "{{ lights_when_tv_on | select('string') | list }}"
-                    data:
-                      transition: !input transition_time
-                      brightness: 128 # You can adjust this value as needed
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
