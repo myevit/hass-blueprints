@@ -195,9 +195,14 @@ trigger:
     event_type: zha_event
     event_data:
       device_id: !input dimmer_switch
-  - platform: state
-    entity_id: !input tv_entity
-    to: "on"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ tv_entity != '' }}"
+        sequence:
+          - platform: state
+            entity_id: !input tv_entity
+            to: "on"
 action:
   - variables:
       command: "{{ trigger.event.data.command if trigger.event is defined else 'tv_on' }}"
