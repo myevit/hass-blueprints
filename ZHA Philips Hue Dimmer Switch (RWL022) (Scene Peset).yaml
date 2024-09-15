@@ -213,8 +213,10 @@ action:
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights %}
           {{ valid_tv_lights }}
-        {% else %}
+        {% elif valid_all_lights %}
           {{ valid_all_lights }}
+        {% else %}
+          []
         {% endif %}
       lights_to_turn_off: >
         {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
@@ -237,11 +239,15 @@ action:
         {% else %}
           1
         {% endif %}
-  - service: light.turn_off
-    target:
-      entity_id: "{{ lights_to_turn_off }}"
-    data:
-      transition: !input transition_time
+  - choose:
+      - conditions:
+          - "{{ lights_to_turn_off | length > 0 }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: "{{ lights_to_turn_off }}"
+            data:
+              transition: !input transition_time
   - choose:
       - conditions:
           - "{{ command == 'tv_on' }}"
