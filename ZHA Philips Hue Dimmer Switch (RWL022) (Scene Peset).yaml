@@ -2,7 +2,7 @@ blueprint:
   name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
-    Version 1.5.0
+    Version 1.6.0
   domain: automation
   input:
     dimmer_switch:
@@ -195,14 +195,6 @@ trigger:
     event_type: zha_event
     event_data:
       device_id: !input dimmer_switch
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ tv_entity != '' }}"
-        sequence:
-          - platform: state
-            entity_id: !input tv_entity
-            to: "on"
 action:
   - variables:
       command: "{{ trigger.event.data.command if trigger.event is defined else 'tv_on' }}"
