@@ -2,7 +2,7 @@ blueprint:
   name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
-    Version 1.1.1
+    Version 1.1.2
   domain: automation
   input:
     dimmer_switch:
@@ -208,10 +208,13 @@ action:
       lights_when_tv_on: !input lights_when_tv_on
       all_lights: !input light
       target_lights: >
-        {% if tv_entity and is_state(tv_entity, 'on') and lights_when_tv_on is sequence and lights_when_tv_on | select('string') | list | length > 0 %}
-          {{ lights_when_tv_on | select('string') | list }}
+        {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
+        {% set valid_tv_lights = lights_when_tv_on | default([]) | select('string') | list %}
+        {% set valid_all_lights = all_lights | default([]) | select('string') | list %}
+        {% if tv_on and valid_tv_lights %}
+          {{ valid_tv_lights }}
         {% else %}
-          {{ all_lights | select('string') | list }}
+          {{ valid_all_lights }}
         {% endif %}
       hold_press_change: !input hold_press_change
       current_preset: >
@@ -248,16 +251,16 @@ action:
           - "{{ command == 'on_press' }}"
         sequence:
           - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
+              - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
                   - service: scene_presets.apply_preset
                     data:
-                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
+              - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
                   - service: light.turn_off
                     target:
