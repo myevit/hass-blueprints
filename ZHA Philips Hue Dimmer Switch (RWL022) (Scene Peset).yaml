@@ -194,19 +194,23 @@ trigger:
     event_type: zha_event
     event_data:
       device_id: !input dimmer_switch
+  - platform: state
+    entity_id: !input tv_entity
+    to: "on"
 action:
   - variables:
-      command: "{{ trigger.event.data.command }}"
+      command: "{{ trigger.event.data.command if trigger.event is defined else 'tv_on' }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
       tv_entity: !input tv_entity
       lights_when_tv_on: !input lights_when_tv_on
+      all_lights: !input light
       target_lights: >
         {% if tv_entity and is_state(tv_entity, 'on') and lights_when_tv_on %}
           {{ lights_when_tv_on }}
         {% else %}
-          {{ light }}
+          {{ all_lights }}
         {% endif %}
       hold_press_change: !input hold_press_change
       current_preset: >
@@ -221,6 +225,16 @@ action:
           1
         {% endif %}
   - choose:
+      - conditions:
+          - "{{ command == 'tv_on' }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: >
+                {% set diff = expand(all_lights) | rejectattr('entity_id', 'in', lights_when_tv_on) | map(attribute='entity_id') | list %}
+                {{ diff }}
+            data:
+              transition: !input transition_time
       - conditions:
           - "{{ command == 'on_press' }}"
         sequence:
