@@ -231,27 +231,27 @@ action:
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
               - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
                   - service: light.turn_off
                     target:
-                      entity_id: !input light
+                      entity_id: "{{ target_lights }}"
                     data:
                       transition: !input transition_time
                   - service: scene_presets.stop_dynamic_scenes_for_targets
                     data:
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
       - conditions:
           - "{{ command == 'on_double_press' }}"
         sequence:
           - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
-                entity_id: !input light
+                entity_id: "{{ target_lights }}"
           - choose:
               - conditions: "{{ (included_scenes[0] | from_json).type == 'static' }}"
                 sequence:
@@ -259,7 +259,7 @@ action:
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
@@ -268,7 +268,7 @@ action:
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
       - conditions:
@@ -344,7 +344,7 @@ action:
           - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
-                entity_id: !input light
+                entity_id: "{{ target_lights }}"
           - choose:
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
                 sequence:
@@ -352,7 +352,7 @@ action:
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'dynamic' }}"
@@ -361,7 +361,7 @@ action:
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
-                        entity_id: !input light
+                        entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
           - service: input_text.set_value
