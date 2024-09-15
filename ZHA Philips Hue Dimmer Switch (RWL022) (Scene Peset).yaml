@@ -2,7 +2,7 @@ blueprint:
   name: ZHA Philips Hue Dimmer Switch (RWL022) (Scene Preset)
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
-    Version 1.1.2
+    Version 1.2.0
   domain: automation
   input:
     dimmer_switch:
@@ -209,8 +209,8 @@ action:
       all_lights: !input light
       target_lights: >
         {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
-        {% set valid_tv_lights = lights_when_tv_on | default([]) | select('string') | list %}
-        {% set valid_all_lights = all_lights | default([]) | select('string') | list %}
+        {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
+        {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights %}
           {{ valid_tv_lights }}
         {% else %}
@@ -218,8 +218,8 @@ action:
         {% endif %}
       lights_to_turn_off: >
         {% set tv_on = tv_entity and is_state(tv_entity, 'on') %}
-        {% set valid_tv_lights = lights_when_tv_on | default([]) | select('string') | list %}
-        {% set valid_all_lights = all_lights | default([]) | select('string') | list %}
+        {% set valid_tv_lights = (lights_when_tv_on if lights_when_tv_on is sequence else [lights_when_tv_on]) | select('string') | list %}
+        {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights %}
           {{ valid_all_lights | reject('in', valid_tv_lights) | list }}
         {% else %}
