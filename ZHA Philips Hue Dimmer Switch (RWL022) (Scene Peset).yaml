@@ -125,6 +125,48 @@ blueprint:
                   "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
                   "type": "dynamic"
                 }
+            - label: Static Galaxy
+              value: >
+                {
+                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
+                  "type": "static"
+                }
+            - label: Static Nighttime
+              value: >
+                {
+                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
+                  "type": "static"
+                }
+            - label: Static Sleepy
+              value: >
+                {
+                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
+                  "type": "static"
+                }
+            - label: Static Unwind
+              value: >
+                {
+                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
+                  "type": "static"
+                }
+            - label: Static Storybook
+              value: >
+                {
+                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
+                  "type": "static"
+                }
+            - label: Static Shine
+              value: >
+                {
+                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
+                  "type": "static"
+                }
+            - label: Static Arise
+              value: >
+                {
+                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
+                  "type": "static"
+                }
     dynamic_transition:
       name: Dynamic Transition
       description: Transition time between changes of the dynamic colour states
