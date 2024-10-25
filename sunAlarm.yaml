@@ -1,9 +1,9 @@
 blueprint:
-  name: Wake-up light alarm with sunrise effect
+  name: Wake-up light alarm with realistic sunrise effect
   description: >
-    A wake-up light alarm with a brightness and color temperature sunrise effect.
+    A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
     Requires date_time_iso sensor in configuration.
-    Version: 1.0.0
+    Version: 1.1.1
   domain: automation
   input:
     light_entity:
@@ -11,68 +11,46 @@ blueprint:
       description: The light to control. Color temperature range is auto-detected.
       selector:
         entity:
-          domain: [light]
-          multiple: false
+          domain: light
     sunrise_duration:
       name: Sunrise duration
       description: The sunrise will start this many minutes before the timestamp.
-      default: 25
+      default: 30
       selector:
         number:
-          min: 5
+          min: 10
           max: 60
           step: 5
           unit_of_measurement: min
           mode: slider
-    start_brightness:
-      name: Minimum brightness
-      default: 1
-      selector:
-        number:
-          min: 1
-          max: 100
-          step: 1
-          mode: slider
-          unit_of_measurement: "%"
     end_brightness:
-      name: Maximum brightness
+      name: Ending brightness
       default: 100
       selector:
         number:
-          min: 1
+          min: 10
           max: 100
           step: 1
           mode: slider
           unit_of_measurement: "%"
-    max_kelvin:
-      name: Maximum color temperature
-      description: "The maximum color temperature to use. (10000: highest supported)"
-      default: 5500
-      selector:
-        number:
-          min: 2000
-          max: 10000
-          step: 100
-          mode: slider
-          unit_of_measurement: K
 
 variables:
   light_entity: !input light_entity
   sunrise_duration: !input sunrise_duration
-  start_brightness: !input start_brightness
+  start_brightness: 1
   end_brightness: !input end_brightness
-  max_kelvin: !input max_kelvin
-  seconds: "{{ sunrise_duration | float * 60 }}"
-  start_kelvin: "{{ 1000000 // state_attr(light_entity, 'max_mireds') }}"
-  end_kelvin: "{{ [1000000 // state_attr(light_entity, 'min_mireds'), max_kelvin | int(10000)] | min }}"
+  seconds: "{{ sunrise_duration * 60 }}"
+  start_color: [255, 0, 0] # Deep red
+  mid_color1: [255, 60, 0] # Orange-red
+  mid_color2: [255, 120, 0] # Orange
+  mid_color3: [255, 180, 0] # Yellow-orange
+  end_color: [255, 255, 200] # Warm white
 
 trigger:
-  - platform: state
+  - trigger: state
     entity_id: !input light_entity
     from: "on"
     to: "off"
-  - platform: template
-    value_template: "{{ states('sensor.date_time_iso') != 'unavailable' }}"
 
 condition:
   - condition: template
@@ -82,15 +60,47 @@ action:
   - repeat:
       count: 100
       sequence:
-        - service: light.turn_on
+        - action: light.turn_on
           target:
             entity_id: !input light_entity
           data:
-            brightness: "{{ ((start_brightness | float + (end_brightness | float - start_brightness | float) * repeat.index / 100) * 2.55) | round }}"
-            color_temp: "{{ (start_kelvin | float + (end_kelvin | float - start_kelvin | float) * repeat.index / 100) | round }}"
-            transition: "{{ seconds | float / 100 }}"
+            brightness: >
+              {{ ((start_brightness + (end_brightness - start_brightness) 
+              * ((repeat.index / 100) ** 2) * (3 - 2 * (repeat.index / 100))) * 2.55) | round }}
+            rgb_color: >
+              {% set t = repeat.index / 100 %}
+              {% if t < 0.25 %}
+                {% set f = t * 4 %}
+                {{ [
+                  (start_color[0] + (mid_color1[0] - start_color[0]) * f) | round,
+                  (start_color[1] + (mid_color1[1] - start_color[1]) * f) | round,
+                  (start_color[2] + (mid_color1[2] - start_color[2]) * f) | round
+                ] }}
+              {% elif t < 0.5 %}
+                {% set f = (t - 0.25) * 4 %}
+                {{ [
+                  (mid_color1[0] + (mid_color2[0] - mid_color1[0]) * f) | round,
+                  (mid_color1[1] + (mid_color2[1] - mid_color1[1]) * f) | round,
+                  (mid_color1[2] + (mid_color2[2] - mid_color1[2]) * f) | round
+                ] }}
+              {% elif t < 0.75 %}
+                {% set f = (t - 0.5) * 4 %}
+                {{ [
+                  (mid_color2[0] + (mid_color3[0] - mid_color2[0]) * f) | round,
+                  (mid_color2[1] + (mid_color3[1] - mid_color2[1]) * f) | round,
+                  (mid_color2[2] + (mid_color3[2] - mid_color2[2]) * f) | round
+                ] }}
+              {% else %}
+                {% set f = (t - 0.75) * 4 %}
+                {{ [
+                  (mid_color3[0] + (end_color[0] - mid_color3[0]) * f) | round,
+                  (mid_color3[1] + (end_color[1] - mid_color3[1]) * f) | round,
+                  (mid_color3[2] + (end_color[2] - mid_color3[2]) * f) | round
+                ] }}
+              {% endif %}
+            transition: "{{ seconds / 100 }}"
         - delay:
-            seconds: "{{ seconds | float / 100 }}"
+            seconds: "{{ seconds / 100 }}"
 
 mode: restart
 max_exceeded: silent
