@@ -44,7 +44,7 @@ blueprint:
     max_kelvin:
       name: Maximum color temperature
       description: "The maximum color temperature to use. (10000: highest supported)"
-      default: 10000
+      default: 5500
       selector:
         number:
           min: 2000
