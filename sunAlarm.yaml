@@ -1,0 +1,108 @@
+blueprint:
+  name: Wake-up light alarm with sunrise effect
+  description: "A wake-up light alarm with a brightness and color temperature sunrise effect. Requires date_time_iso sensor in configuration."
+  domain: automation
+  input:
+    light_entity:
+      name: Wake-up light entity
+      description: The light to control. Color temperature range is auto-detected.
+      selector:
+        entity:
+          domain: [light]
+          multiple: false
+    check_entity:
+      name: Additional entity to check before sunrise is triggered
+      description: If set, checks if entity is 'on' or 'home' before triggering.
+      default: none
+      selector:
+        entity:
+          multiple: false
+    sunrise_duration:
+      name: Sunrise duration
+      description: The sunrise will start this many minutes before the timestamp.
+      default: 25
+      selector:
+        number:
+          min: 5
+          max: 60
+          step: 5
+          unit_of_measurement: min
+          mode: slider
+    start_brightness:
+      name: Minimum brightness
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: slider
+          unit_of_measurement: "%"
+    end_brightness:
+      name: Maximum brightness
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: slider
+          unit_of_measurement: "%"
+    max_kelvin:
+      name: Maximum color temperature
+      description: "The maximum color temperature to use. (10000: highest supported)"
+      default: 10000
+      selector:
+        number:
+          min: 2000
+          max: 10000
+          step: 100
+          mode: slider
+          unit_of_measurement: K
+
+variables:
+  light_entity: !input light_entity
+  sunrise_duration: !input sunrise_duration
+  start_brightness: !input start_brightness
+  end_brightness: !input end_brightness
+  max_kelvin: !input max_kelvin
+  seconds: "{{ sunrise_duration | float * 60 }}"
+  start_kelvin: "{{ 1000000 // state_attr(light_entity, 'max_mireds') }}"
+  end_kelvin: "{{ [1000000 // state_attr(light_entity, 'min_mireds'), max_kelvin | int(10000)] | min }}"
+
+trigger:
+  - platform: state
+    entity_id: !input light_entity
+    from: "on"
+    to: "off"
+  - platform: template
+    value_template: "{{ states('sensor.date_time_iso') != 'unavailable' }}"
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.platform != 'state' }}"
+  - condition: or
+    conditions:
+      - condition: state
+        entity_id: !input check_entity
+        state:
+          - "off"
+          - "false"
+          - "not_home"
+
+action:
+  - repeat:
+      count: 100
+      sequence:
+        - service: light.turn_on
+          target:
+            entity_id: !input light_entity
+          data:
+            brightness: "{{ ((start_brightness | float + (end_brightness | float - start_brightness | float) * repeat.index / 100) * 2.55) | round }}"
+            color_temp: "{{ (start_kelvin | float + (end_kelvin | float - start_kelvin | float) * repeat.index / 100) | round }}"
+            transition: "{{ seconds | float / 100 }}"
+        - delay:
+            seconds: "{{ seconds | float / 100 }}"
+
+mode: restart
+max_exceeded: silent
