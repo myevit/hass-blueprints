@@ -10,13 +10,6 @@ blueprint:
         entity:
           domain: [light]
           multiple: false
-    check_entity:
-      name: Additional entity to check before sunrise is triggered
-      description: If set, checks if entity is 'on' or 'home' before triggering.
-      default: none
-      selector:
-        entity:
-          multiple: false
     sunrise_duration:
       name: Sunrise duration
       description: The sunrise will start this many minutes before the timestamp.
@@ -81,14 +74,6 @@ trigger:
 condition:
   - condition: template
     value_template: "{{ trigger.platform != 'state' }}"
-  - condition: or
-    conditions:
-      - condition: state
-        entity_id: !input check_entity
-        state:
-          - "off"
-          - "false"
-          - "not_home"
 
 action:
   - repeat:
