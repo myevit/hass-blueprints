@@ -52,8 +52,8 @@ variables:
   sunrise_duration: !input sunrise_duration
   start_brightness: 1
   end_brightness: !input end_brightness
-  total_steps: "{{ end_brightness - start_brightness }}"
-  step_duration: "{{ (sunrise_duration * 60) / total_steps }}"
+  total_steps: "{{ (end_brightness * 2.55) | round(0) }}"
+  step_duration: "{{ (sunrise_duration | float) / total_steps }}"
   start_color: [255, 0, 0] # Deep red
   mid_color1: [255, 60, 0] # Orange-red
   mid_color2: [255, 120, 0] # Orange
@@ -71,7 +71,7 @@ action:
     target:
       entity_id: !input light_entity
     data:
-      brightness: "{{ (start_brightness * 2.55) | round }}"
+      brightness: "{{ start_brightness }}"
       rgb_color: "{{ start_color }}"
       transition: 1
 
@@ -119,9 +119,9 @@ action:
                   (mid_color3[2] + (end_color[2] - mid_color3[2]) * f) | round
                 ] }}
               {% endif %}
-            transition: "{{ step_duration }}"
+            transition: "{{ step_duration * 60 }}"
         - delay:
-            seconds: "{{ step_duration }}"
+            seconds: "{{ (step_duration * 60) | round(0) }}"
         - if:
             - condition: or
               conditions:
