@@ -2,7 +2,7 @@ blueprint:
   name: Wake-up light alarm with realistic sunrise effect
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
-    Version: 1.3.1
+    Version: 1.4.0
   domain: automation
   homeassistant:
     min_version: "2023.1.0"
