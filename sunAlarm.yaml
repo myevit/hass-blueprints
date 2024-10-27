@@ -2,8 +2,7 @@ blueprint:
   name: Wake-up light alarm with realistic sunrise effect
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
-    Requires date_time_iso sensor in configuration.
-    Version: 1.1.1
+    Version: 1.1.2
   domain: automation
   homeassistant:
     min_version: "2023.1.0"
@@ -36,6 +35,17 @@ blueprint:
           step: 1
           mode: slider
           unit_of_measurement: "%"
+    keep_on_duration:
+      name: Keep light on duration
+      description: How long to keep the light on after the sunrise effect is complete.
+      default: 60
+      selector:
+        number:
+          min: 5
+          max: 120
+          step: 5
+          unit_of_measurement: min
+          mode: slider
 
 variables:
   light_entity: !input light_entity
@@ -48,12 +58,11 @@ variables:
   mid_color2: [255, 120, 0] # Orange
   mid_color3: [255, 180, 0] # Yellow-orange
   end_color: [255, 255, 200] # Warm white
+  keep_on_duration: !input keep_on_duration
 
 trigger:
-  - trigger: state
-    entity_id: !input light_entity
-    from: "on"
-    to: "off"
+  - platform: event
+    event_type: sunrise_alarm_start
 
 condition:
   - condition: template
@@ -141,8 +150,16 @@ action:
                     - condition: template
                       value_template: "{{ repeat.index == (sunrise_duration * 60) - 1 }}"
                   sequence:
+                    - if:
+                        condition: template
+                        value_template: "{{ keep_on_duration > 0 }}"
+                      then:
+                        - delay:
+                            minutes: "{{ keep_on_duration }}"
+                        - action: light.turn_off
+                          target:
+                            entity_id: !input light_entity
                     - stop: "Sunrise complete"
 
 mode: single
-
 max_exceeded: silent
