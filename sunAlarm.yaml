@@ -57,50 +57,89 @@ condition:
     value_template: "{{ trigger.platform != 'state' }}"
 
 action:
+  - variables:
+      start_time: "{{ now() }}"
+      end_time: "{{ now() + timedelta(minutes=sunrise_duration) }}"
+
+  # Set initial state
+  - service: light.turn_on
+    target:
+      entity_id: !input light_entity
+    data:
+      brightness: "{{ (start_brightness * 2.55) | round }}"
+      rgb_color: "{{ start_color }}"
+      transition: 1
+
   - repeat:
-      count: 100
+      count: "{{ (sunrise_duration * 60) | int }}"
       sequence:
-        - action: light.turn_on
+        - condition: state
+          entity_id: !input light_entity
+          state: "on"
+        - variables:
+            progress: "{{ repeat.index / (sunrise_duration * 60) }}"
+        - service: light.turn_on
           target:
             entity_id: !input light_entity
           data:
             brightness: >
               {{ ((start_brightness + (end_brightness - start_brightness) 
-              * ((repeat.index / 100) ** 2) * (3 - 2 * (repeat.index / 100))) * 2.55) | round }}
+              * (progress ** 2) * (3 - 2 * progress)) * 2.55) | round }}
             rgb_color: >
-              {% set t = repeat.index / 100 %}
-              {% if t < 0.25 %}
-                {% set f = t * 4 %}
+              {% if progress < 0.25 %}
+                {% set f = progress * 4 %}
                 {{ [
                   (start_color[0] + (mid_color1[0] - start_color[0]) * f) | round,
                   (start_color[1] + (mid_color1[1] - start_color[1]) * f) | round,
                   (start_color[2] + (mid_color1[2] - start_color[2]) * f) | round
                 ] }}
-              {% elif t < 0.5 %}
-                {% set f = (t - 0.25) * 4 %}
+              {% elif progress < 0.5 %}
+                {% set f = (progress - 0.25) * 4 %}
                 {{ [
                   (mid_color1[0] + (mid_color2[0] - mid_color1[0]) * f) | round,
                   (mid_color1[1] + (mid_color2[1] - mid_color1[1]) * f) | round,
                   (mid_color1[2] + (mid_color2[2] - mid_color1[2]) * f) | round
                 ] }}
-              {% elif t < 0.75 %}
-                {% set f = (t - 0.5) * 4 %}
+              {% elif progress < 0.75 %}
+                {% set f = (progress - 0.5) * 4 %}
                 {{ [
                   (mid_color2[0] + (mid_color3[0] - mid_color2[0]) * f) | round,
                   (mid_color2[1] + (mid_color3[1] - mid_color2[1]) * f) | round,
                   (mid_color2[2] + (mid_color3[2] - mid_color2[2]) * f) | round
                 ] }}
               {% else %}
-                {% set f = (t - 0.75) * 4 %}
+                {% set f = (progress - 0.75) * 4 %}
                 {{ [
                   (mid_color3[0] + (end_color[0] - mid_color3[0]) * f) | round,
                   (mid_color3[1] + (end_color[1] - mid_color3[1]) * f) | round,
                   (mid_color3[2] + (end_color[2] - mid_color3[2]) * f) | round
                 ] }}
               {% endif %}
-            transition: "{{ seconds / 100 }}"
+            transition: 1
         - delay:
-            seconds: "{{ seconds / 100 }}"
+            seconds: 1
+        - if:
+            - condition: or
+              conditions:
+                - condition: state
+                  entity_id: !input light_entity
+                  state: "off"
+                - condition: template
+                  value_template: "{{ repeat.index == (sunrise_duration * 60) - 1 }}"
+          then:
+            - choose:
+                - conditions:
+                    - condition: state
+                      entity_id: !input light_entity
+                      state: "off"
+                  sequence:
+                    - stop: "Light turned off, aborting sunrise"
+                - conditions:
+                    - condition: template
+                      value_template: "{{ repeat.index == (sunrise_duration * 60) - 1 }}"
+                  sequence:
+                    - stop: "Sunrise complete"
 
-mode: restart
+mode: single
+
 max_exceeded: silent
