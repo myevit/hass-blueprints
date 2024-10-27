@@ -64,10 +64,6 @@ trigger:
   - platform: event
     event_type: sunrise_alarm_start
 
-condition:
-  - condition: template
-    value_template: "{{ trigger.platform != 'state' }}"
-
 action:
   - variables:
       start_time: "{{ now() }}"
