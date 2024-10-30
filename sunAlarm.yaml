@@ -1,5 +1,5 @@
 blueprint:
-  name: Wake-up light alarm with realistic sunrise effect. Version: 1.4.1
+  name: Wake-up light alarm with realistic sunrise effect. v1.4.1
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
   domain: automation
