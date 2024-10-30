@@ -2,7 +2,7 @@ blueprint:
   name: Wake-up light alarm with realistic sunrise effect
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
-    Version: 1.4.0
+    Version: 1.4.1
   domain: automation
   homeassistant:
     min_version: "2023.1.0"
@@ -55,11 +55,12 @@ variables:
   total_steps: "{{ (end_brightness * 2.55) | round(0) }}"
   step_duration: "{{ (sunrise_duration | float) / total_steps }}"
   color_steps: [
-      [255, 0, 0], # Deep red
-      [255, 60, 0], # Orange-red
-      [255, 120, 0], # Orange
-      [255, 180, 0], # Yellow-orange
-      [255, 255, 200], # Warm white
+      [139, 0, 0], # Deep dark red
+      [205, 16, 0], # Dark red
+      [255, 69, 0], # Red-orange
+      [255, 130, 0], # Deep orange
+      [255, 180, 50], # Golden yellow
+      [255, 223, 150], # Very warm white/golden (much warmer end point)
     ]
   keep_on_duration: !input keep_on_duration
 
