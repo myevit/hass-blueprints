@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.4.4"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.4.5"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
   domain: automation
@@ -52,7 +52,7 @@ variables:
   start_brightness: 1
   end_brightness: !input end_brightness
   update_interval: 10 # Update every 10 seconds
-  total_updates: "{{ ((sunrise_duration * 60) / update_interval) | round(0) }}"
+  total_updates: "{{ (sunrise_duration * 60 / update_interval) | int }}"
   color_steps: [
       [1, 0, 0], # Deep dark red
       [139, 0, 0], # Deep dark red
