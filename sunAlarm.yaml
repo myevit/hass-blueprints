@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.4.2"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.4.3"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
   domain: automation
@@ -51,15 +51,15 @@ variables:
   sunrise_duration: !input sunrise_duration
   start_brightness: 1
   end_brightness: !input end_brightness
-  total_steps: "{{ (end_brightness * 2.55) | round(0) }}"
-  step_duration: "{{ (sunrise_duration | float) / total_steps }}"
+  update_interval: 10 # Update every 10 seconds
+  total_updates: "{{ ((sunrise_duration * 60) / update_interval) | round(0) }}"
   color_steps: [
       [139, 0, 0], # Deep dark red
       [205, 16, 0], # Dark red
       [255, 69, 0], # Red-orange
       [255, 130, 0], # Deep orange
       [255, 180, 50], # Golden yellow
-      [255, 223, 150], # Very warm white/golden (much warmer end point)
+      [255, 223, 150], # Very warm white/golden
     ]
   keep_on_duration: !input keep_on_duration
 
@@ -75,19 +75,20 @@ action:
     data:
       brightness: "{{ start_brightness }}"
       rgb_color: "{{ color_steps[0] }}"
-      transition: "{{ step_duration * 60 }}"
+      transition: "{{ update_interval }}"
   - delay:
-      seconds: "{{ (step_duration * 60) | round(0) }}"
+      seconds: "{{ update_interval }}"
 
   - repeat:
-      count: "{{ total_steps }}"
+      count: "{{ total_updates }}"
       sequence:
         - condition: state
           entity_id: !input light_entity
           state: "on"
         - variables:
-            progress: "{{ repeat.index / total_steps }}"
-            current_brightness: "{{ start_brightness + repeat.index }}"
+            progress: "{{ repeat.index / total_updates }}"
+            current_brightness: >
+              {{ ((1 - (1 - progress) ** 2) * (end_brightness - start_brightness) + start_brightness) | round(0) }}
             color_progress: "{{ progress * (color_steps | length - 1) }}"
             color_index: "{{ color_progress | int }}"
         - action: light.turn_on
@@ -104,9 +105,9 @@ action:
                 (start[1] + (end[1] - start[1]) * fraction) | round,
                 (start[2] + (end[2] - start[2]) * fraction) | round
               ] }}
-            transition: "{{ step_duration * 60 }}"
+            transition: "{{ update_interval }}"
         - delay:
-            seconds: "{{ (step_duration * 60) | round(0) }}"
+            seconds: "{{ update_interval }}"
         - if:
             - condition: or
               conditions:
@@ -114,7 +115,7 @@ action:
                   entity_id: !input light_entity
                   state: "off"
                 - condition: template
-                  value_template: "{{ repeat.index == total_steps - 1 }}"
+                  value_template: "{{ repeat.index == total_updates - 1 }}"
           then:
             - choose:
                 - conditions:
@@ -125,7 +126,7 @@ action:
                     - stop: "Light turned off, aborting sunrise"
                 - conditions:
                     - condition: template
-                      value_template: "{{ repeat.index == total_steps - 1 }}"
+                      value_template: "{{ repeat.index == total_updates - 1 }}"
                   sequence:
                     - if:
                         condition: template
