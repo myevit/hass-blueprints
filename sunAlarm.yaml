@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.4.5"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.5.6"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
   domain: automation
@@ -74,7 +74,7 @@ action:
     target:
       entity_id: !input light_entity
     data:
-      brightness: "{{ start_brightness }}"
+      brightness: "{{ start_brightness * 2.55 | round(0) }}"
       rgb_color: "{{ color_steps[0] }}"
       transition: "{{ update_interval }}"
   - delay:
