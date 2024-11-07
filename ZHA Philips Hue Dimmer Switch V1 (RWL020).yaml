@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL020)
+  name: ZHA Philips Hue Dimmer Switch (RWL020) v.1.1.0
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
