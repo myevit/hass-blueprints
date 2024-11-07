@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL020) v.1.2.0
+  name: ZHA Philips Hue Dimmer Switch (RWL020) v.1.3.0
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -56,7 +56,7 @@ blueprint:
       selector:
         entity:
           domain:
-            - input_number
+            - input_text
           multiple: false
 
     transition_time:
@@ -105,7 +105,17 @@ action:
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
-      active_scene: "{{ iif(states(scene_helper) | int(0) >= included_scenes | count, 0, states(scene_helper)) | int(0) }}"
+      active_scene: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
+            {{ (data | from_json).scene }}
+          {% else %}
+          1
+          {% endif %}
+        {% else %}
+          1
+        {% endif %}
       target_lights: !input light
       hold_press_change: !input hold_press_change
 
@@ -117,11 +127,12 @@ action:
               transition: !input transition_time
               entity_id: >
                 {{ included_scenes[active_scene] }}
-          - service: input_number.set_value
+          - service: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
-              value: "{{ active_scene + 1}}"
+              value: >
+                {{ {"scene": (current_preset + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
 
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
@@ -222,14 +233,3 @@ action:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_off
-
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: !input reset_after
-      milliseconds: 0
-  - service: input_number.set_value
-    target:
-      entity_id: !input scene_helper
-    data:
-      value: 0
