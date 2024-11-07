@@ -9,7 +9,7 @@ blueprint:
       selector:
         device:
           integration: zha
-          model: RWL022
+          model: RWL020
           multiple: false
     aux_scene_on:
       name: ON Button Aux Scene
