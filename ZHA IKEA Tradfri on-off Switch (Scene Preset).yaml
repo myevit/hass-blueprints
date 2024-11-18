@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA IKEA Tradfri on/off Switch (Scene Preset)
+  name: ZHA IKEA Tradfri on/off Switch (Scene Preset) v0.1.0
   description: Control lights with a IKEA Tradfri on/off Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
