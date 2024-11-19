@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL022)
+  name: ZHA Philips Hue Dimmer Switch (RWL022) v.1.5.1
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -40,13 +40,11 @@ blueprint:
           multiple: true
     scene_helper:
       name: Scene helper
-      description:
-        Please select a Input Number Helper to be used to record the scene
-        sequence.
+      description: Please select a Input Number Helper to be used to record the scene sequence.
       selector:
         entity:
           domain:
-            - input_number
+            - input_text
           multiple: false
     transition_time:
       name: Transition time
@@ -83,6 +81,24 @@ blueprint:
           step: 1.0
           unit_of_measurement: s
           mode: slider
+    aux_scene_on:
+      name: ON Button Aux Scene
+      description: Scene will be active on double ON press
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: false
+    aux_scene_off:
+      name: Off Button Aux Scene
+      description: Scene will be active on double OFF press
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: false
 mode: restart
 max_exceeded: silent
 trigger:
@@ -97,30 +113,38 @@ action:
       scene_helper: !input scene_helper
       reset_after: !input reset_after
       main_scene: !input main_scene
-      active_scene:
-        "{{ iif(states(scene_helper) | int(0) >= included_scenes | count,
-        0, states(scene_helper)) | int(0) }}"
+      active_scene: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
+            {{ (data | from_json).scene }}
+          {% else %}
+          0
+          {% endif %}
+        {% else %}
+          0
+        {% endif %}
       target_lights: !input light
       hold_press_change: !input hold_press_change
   - choose:
-      - conditions:
-          - "{{ command == 'on' or command == 'off_with_effect' }}"
+      - conditions: "{{ command == 'on' }}"
         sequence:
-          - choose:
-              - conditions: "{{ states(target_lights) == 'off' }}"
-                sequence:
-                  - service: scene.turn_on
-                    target:
-                      entity_id: !input main_scene
-                    data:
-                      transition: !input transition_time
-              - conditions: "{{ states(target_lights) == 'on' }}"
-                sequence:
-                  - service: light.turn_off
-                    target:
-                      entity_id: !input light
-                    data:
-                      transition: !input transition_time
+          - service: scene.turn_on
+            data_template:
+              transition: !input transition_time
+              entity_id: >
+                {{ included_scenes[active_scene] }}
+          - service: input_text.set_value
+            target:
+              entity_id: !input scene_helper
+            data:
+              value: >
+                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+      - conditions: "{{ command == 'on_double_press' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_on
       - conditions:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
@@ -202,22 +226,11 @@ action:
               transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: scene.turn_on
-            data_template:
-              transition: !input transition_time
-              entity_id: "{{ included_scenes[active_scene] }}"
-          - service: input_number.set_value
+          - service: light.turn_off
             target:
-              entity_id: !input scene_helper
-            data:
-              value: "{{ active_scene + 1}}"
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: !input reset_after
-      milliseconds: 0
-  - service: input_number.set_value
-    target:
-      entity_id: !input scene_helper
-    data:
-      value: 0
+              entity_id: !input light
+      - conditions: "{{ command == 'off_double_press' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_off
