@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL022) v.1.5.1
+  name: ZHA Philips Hue Dimmer Switch (RWL022) v.1.5.2
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -130,16 +130,10 @@ action:
       - conditions: "{{ command == 'on' }}"
         sequence:
           - service: scene.turn_on
-            data_template:
-              transition: !input transition_time
-              entity_id: >
-                {{ included_scenes[active_scene] }}
-          - service: input_text.set_value
             target:
-              entity_id: !input scene_helper
+              entity_id: !input main_scene
             data:
-              value: >
-                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+              transition: !input transition_time
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
           - service: scene.turn_on
@@ -226,9 +220,17 @@ action:
               transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: light.turn_off
+          - service: scene.turn_on
+            data_template:
+              transition: !input transition_time
+              entity_id: >
+                {{ included_scenes[active_scene] }}
+          - service: input_text.set_value
             target:
-              entity_id: !input light
+              entity_id: !input scene_helper
+            data:
+              value: >
+                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
       - conditions: "{{ command == 'off_double_press' }}"
         sequence:
           - service: scene.turn_on
