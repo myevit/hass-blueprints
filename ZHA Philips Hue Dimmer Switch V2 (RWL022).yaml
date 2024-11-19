@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA Philips Hue Dimmer Switch (RWL022) v.1.5.3
+  name: ZHA Philips Hue Dimmer Switch (RWL022) v.1.5.4
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -40,7 +40,7 @@ blueprint:
           multiple: true
     scene_helper:
       name: Scene helper
-      description: Please select a Input Number Helper to be used to record the scene sequence.
+      description: Please select a Input Text Helper to be used to record the scene sequence.
       selector:
         entity:
           domain:
@@ -99,7 +99,7 @@ blueprint:
             - domain:
                 - scene
           multiple: false
-mode: restart
+mode: queued
 max_exceeded: silent
 trigger:
   - platform: event
