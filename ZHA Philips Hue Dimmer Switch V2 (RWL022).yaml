@@ -8,9 +8,9 @@ blueprint:
       description: The dimmer switch to use
       selector:
         device:
-          integration: zigbee2mqtt
+          integration: mqtt
           manufacturer: Philips
-          model: RWL022
+          model: Hue dimmer switch*
           multiple: false
     main_scene:
       name: Main Scene
