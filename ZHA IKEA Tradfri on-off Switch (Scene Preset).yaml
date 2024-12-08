@@ -8,8 +8,7 @@ blueprint:
       description: The dimmer switch to use
       selector:
         device:
-          integration: zigbee2mqtt
-          manufacturer: IKEA
+          integration: zha
           model: TRADFRI on/off switch
           multiple: false
     light:
@@ -173,27 +172,13 @@ blueprint:
 mode: restart
 max_exceeded: silent
 trigger:
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "brightness_move_up"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "brightness_move_down"
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input dimmer_switch
 action:
   - variables:
-      command: >
-        {% set cmd = trigger.payload %}
-        {% if cmd == 'on' %}on
-        {% elif cmd == 'off' %}off
-        {% elif cmd == 'brightness_move_up' %}move_with_on_off
-        {% elif cmd == 'brightness_move_down' %}move
-        {% else %}unknown{% endif %}
+      command: "{{ trigger.event.data.command }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
