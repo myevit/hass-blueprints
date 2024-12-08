@@ -1,5 +1,5 @@
 blueprint:
-  name: "Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) (Scene Preset). Version: 2.0.6"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.0"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -11,7 +11,7 @@ blueprint:
         device:
           integration: mqtt
           manufacturer: Philips
-          model: "Hue dimmer switch (929002398602)"
+          model: "Hue dimmer switch (324131092621)"
           multiple: false
     light:
       name: Lights
@@ -241,71 +241,9 @@ max_exceeded: silent
 trigger:
   - platform: mqtt
     topic: "zigbee2mqtt/+/action"
-    payload: "on_press"
-    id: on_press
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_hold"
-    id: on_hold
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_press_release"
-    id: on_press_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_hold_release"
-    id: on_hold_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_press"
-    id: up_press
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_hold"
-    id: up_hold
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_press_release"
-    id: up_press_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_hold_release"
-    id: up_hold_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_press"
-    id: down_press
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_hold"
-    id: down_hold
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_press_release"
-    id: down_press_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_hold_release"
-    id: down_hold_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_press"
-    id: off_press
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_hold"
-    id: off_hold
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_press_release"
-    id: off_press_release
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_hold_release"
-    id: off_hold_release
 action:
   - variables:
-      command: "{{ trigger.id if trigger is defined else 'tv_on' }}"
+      command: "{{ trigger.payload }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
@@ -400,7 +338,7 @@ action:
                       targets:
                         entity_id: "{{ target_lights }}"
       - conditions:
-          - "{{ command == 'on_hold' }}"
+          - "{{ command == 'on_double_press' }}"
         sequence:
           - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
@@ -449,7 +387,7 @@ action:
                     data:
                       brightness_pct: 100
                       transition: !input transition_time
-      - conditions: "{{ command == 'up_hold_release' }}"
+      - conditions: "{{ command == 'up_double_press' }}"
         sequence:
           - service: light.turn_on
             target:
@@ -483,7 +421,7 @@ action:
                     data:
                       brightness_pct: 1
                       transition: !input transition_time
-      - conditions: "{{ command == 'down_hold_release' }}"
+      - conditions: "{{ command == 'down_double_press' }}"
         sequence:
           - service: light.turn_on
             target:
