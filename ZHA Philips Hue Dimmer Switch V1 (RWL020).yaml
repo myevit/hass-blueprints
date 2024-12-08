@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.1
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.2
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -97,7 +97,12 @@ mode: restart
 max_exceeded: silent
 trigger:
   - platform: mqtt
-    topic: "zigbee2mqtt/{{ device_attr(dimmer_switch, 'name') }}/action"
+    topic: "zigbee2mqtt/+/action"
+    value_template: >-
+      {% set device = trigger.topic.split('/')[1] %}
+      {% if device == device_attr(dimmer_switch, 'name') %}
+        {{ trigger.payload }}
+      {% endif %}
 action:
   - variables:
       command: "{{ trigger.event.data.command }}"
