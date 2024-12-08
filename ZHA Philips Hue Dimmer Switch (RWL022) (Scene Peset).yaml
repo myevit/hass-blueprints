@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.8"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.9"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -240,7 +240,12 @@ mode: queued
 max_exceeded: silent
 trigger:
   - platform: mqtt
-    topic: "zigbee2mqtt/{{ device_attr(dimmer_switch, 'name') }}/action"
+    topic: "zigbee2mqtt/+/action"
+    value_template: >-
+      {% set device = trigger.topic.split('/')[1] %}
+      {% if device == device_attr(dimmer_switch, 'name') %}
+        {{ trigger.payload }}
+      {% endif %}
 action:
   - variables:
       command: "{{ trigger.payload }}"
