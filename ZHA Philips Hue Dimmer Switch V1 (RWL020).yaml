@@ -98,10 +98,10 @@ max_exceeded: silent
 trigger:
   - platform: mqtt
     topic: "zigbee2mqtt/{{ device_attr(dimmer_switch, 'name') }}/action"
-    value_template: "{{ value_json }}"
+
 action:
   - variables:
-      command: "{{ trigger.payload_json }}"
+      command: "{{ trigger.payload }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
