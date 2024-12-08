@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.8
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.9
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -54,11 +54,11 @@ blueprint:
 
     scene_helper:
       name: Scene helper
-      description: Please select a Input Number Helper to be used to record the scene sequence.
+      description: Please select an Input Text Helper to be used to record the scene sequence.
       selector:
         entity:
           domain:
-            - input_number
+            - input_text
           multiple: false
 
     transition_time:
@@ -111,7 +111,17 @@ action:
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
-      active_scene: "{{ iif(states(scene_helper) | int(0) >= included_scenes | count, 0, states(scene_helper)) | int(0) }}"
+      active_scene: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
+            {{ (data | from_json).scene }}
+          {% else %}
+            0
+          {% endif %}
+        {% else %}
+          0
+        {% endif %}
       target_lights: !input light
       hold_press_change: !input hold_press_change
 
@@ -123,11 +133,12 @@ action:
               transition: !input transition_time
               entity_id: >
                 {{ included_scenes[active_scene] }}
-          - service: input_number.set_value
+          - service: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
-              value: "{{ active_scene + 1}}"
+              value: >
+                {{ {"scene": active_scene + 1, "timestamp": as_timestamp(now())} | to_json }}
 
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
@@ -234,8 +245,9 @@ action:
       minutes: 0
       seconds: !input reset_after
       milliseconds: 0
-  - service: input_number.set_value
+  - service: input_text.set_value
     target:
       entity_id: !input scene_helper
     data:
-      value: 0
+      value: >
+        {{ {"scene": 0, "timestamp": as_timestamp(now())} | to_json }}
