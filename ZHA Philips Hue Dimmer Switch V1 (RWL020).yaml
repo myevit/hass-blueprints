@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.20
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.21
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -107,41 +107,38 @@ action:
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
-      active_scene: >
+      scene_count: "{{ included_scenes | length }}" # Debug: Check total number of scenes
+      current_scene: >-
         {% set data = states(scene_helper) %}
-        {% if data != "unknown" %}
-          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
-            {{ (data | from_json).scene }}
+        {% if data != "unknown" and data != "" %}
+          {% set parsed = data | from_json %}
+          {% if (as_timestamp(now()) - parsed.timestamp) < reset_after %}
+            {{ parsed.scene }}
           {% else %}
             0
           {% endif %}
         {% else %}
           0
         {% endif %}
-      next_scene: >
-        {% set scene_count = included_scenes | length %}
-        {% if active_scene >= scene_count - 1 %}
-          0
-        {% else %}
-          {{ active_scene + 1 }}
-        {% endif %}
-      target_lights: !input light
-      hold_press_change: !input hold_press_change
 
   - choose:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
+          - variables:
+              next_scene: "{{ (current_scene | int + 1) % scene_count }}"
+
+          # Activate the current scene
           - service: scene.turn_on
             data:
               transition: !input transition_time
-              entity_id: >
-                {{ included_scenes[active_scene | int] }}
+              entity_id: "{{ included_scenes[current_scene | int] }}"
+
+          # Update the helper with next scene
           - service: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
-              value: >
-                {{ {"scene": next_scene, "timestamp": as_timestamp(now())} | to_json }}
+              value: '{"scene": {{ next_scene }}, "timestamp": {{ as_timestamp(now()) }}}'
 
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
@@ -242,9 +239,3 @@ action:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_off
-  - service: input_text.set_value
-    target:
-      entity_id: !input scene_helper
-    data:
-      value: >
-        {{ {"scene": 0, "timestamp": as_timestamp(now())} | to_json }}
