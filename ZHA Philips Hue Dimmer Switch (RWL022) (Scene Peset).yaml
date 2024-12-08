@@ -1,5 +1,5 @@
 blueprint:
-  name: "Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) (Scene Preset). Version: 2.0.3"
+  name: "Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) (Scene Preset). Version: 2.0.4"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -241,7 +241,7 @@ max_exceeded: silent
 trigger:
   - platform: mqtt
     topic: "zigbee2mqtt/+/action"
-    payload: "on-press"
+    payload: "on_press"
     id: on_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action
