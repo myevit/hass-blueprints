@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.10"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.11"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
