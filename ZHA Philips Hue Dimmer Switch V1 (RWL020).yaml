@@ -1,5 +1,5 @@
 blueprint:
-  name: Zigbee2MQTT Philips Hue Dimmer Switch (RWL020) v.1.5.1
+  name: Zigbee2MQTT Philips Hue Dimmer Switch (RWL020) v.2.5.1
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
