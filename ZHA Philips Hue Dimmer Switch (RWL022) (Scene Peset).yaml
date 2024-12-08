@@ -1,5 +1,5 @@
 blueprint:
-  name: "Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) (Scene Preset). Version: 2.0.0"
+  name: "Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) (Scene Preset). Version: 2.0.1"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -10,8 +10,7 @@ blueprint:
       selector:
         device:
           integration: mqtt
-          manufacturer: Philips
-          model: Hue dimmer switch*
+          model: 929002398602
           multiple: false
     light:
       name: Lights
@@ -241,51 +240,67 @@ max_exceeded: silent
 trigger:
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "on-press"
+    payload: "on_press"
     id: on_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "on-hold"
+    payload: "on_hold"
     id: on_hold
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "on-hold-release"
+    payload: "on_press_release"
+    id: on_press_release
+  - platform: mqtt
+    topic: zigbee2mqtt/+/action
+    payload: "on_hold_release"
     id: on_hold_release
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "up-press"
+    payload: "up_press"
     id: up_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "up-hold"
+    payload: "up_hold"
     id: up_hold
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "up-hold-release"
+    payload: "up_press_release"
+    id: up_press_release
+  - platform: mqtt
+    topic: zigbee2mqtt/+/action
+    payload: "up_hold_release"
     id: up_hold_release
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "down-press"
+    payload: "down_press"
     id: down_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "down-hold"
+    payload: "down_hold"
     id: down_hold
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "down-hold-release"
+    payload: "down_press_release"
+    id: down_press_release
+  - platform: mqtt
+    topic: zigbee2mqtt/+/action
+    payload: "down_hold_release"
     id: down_hold_release
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "off-press"
+    payload: "off_press"
     id: off_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "off-hold"
+    payload: "off_hold"
     id: off_hold
   - platform: mqtt
     topic: zigbee2mqtt/+/action
-    payload: "off-hold-release"
+    payload: "off_press_release"
+    id: off_press_release
+  - platform: mqtt
+    topic: zigbee2mqtt/+/action
+    payload: "off_hold_release"
     id: off_hold_release
 action:
   - variables:
