@@ -9,7 +9,8 @@ blueprint:
       selector:
         device:
           integration: mqtt
-          model: 929002398602
+          model:
+            - 929002398602
           multiple: false
     main_scene:
       name: Main Scene

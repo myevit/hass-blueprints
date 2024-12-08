@@ -10,7 +10,8 @@ blueprint:
       selector:
         device:
           integration: mqtt
-          model: 929002398602
+          model:
+            - 324131092621
           multiple: false
     light:
       name: Lights
