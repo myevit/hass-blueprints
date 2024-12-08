@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.2"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.6"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -269,7 +269,7 @@ action:
         {% set valid_all_lights = (all_lights if all_lights is sequence else [all_lights]) | select('string') | list %}
         {% if tv_on and valid_tv_lights and is_tv_time %}
           {{ valid_tv_lights }}
-        {% elif not tv_on and valid_all_lights %}
+        {% elif valid_all_lights %}
           {{ valid_all_lights }}
         {% else %}
           []
@@ -297,7 +297,6 @@ action:
         {% endif %}
   - choose:
       - conditions:
-          - "{{ tv_entity and is_state(tv_entity, 'on') and is_tv_time }}"
           - "{{ lights_to_turn_off | length > 0 }}"
         sequence:
           - service: light.turn_off
@@ -305,32 +304,39 @@ action:
               entity_id: "{{ lights_to_turn_off }}"
             data:
               transition: !input transition_time
-      - choose:
-          - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
-            sequence:
-              - service: light.turn_off
-                target:
-                  entity_id: "{{ lights_to_turn_off }}"
-                data:
-                  transition: !input transition_time
-              - service: scene_presets.apply_preset
-                data:
-                  preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
-                  targets:
-                    entity_id: "{{ target_lights }}"
-                  shuffle: false
-                  smart_shuffle: false
-          - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
-            sequence:
-              - service: light.turn_off
-                target:
-                  entity_id: "{{ target_lights }}"
-                data:
-                  transition: !input transition_time
-              - service: scene_presets.stop_dynamic_scenes_for_targets
-                data:
-                  targets:
-                    entity_id: "{{ target_lights }}"
+  - choose:
+      - conditions:
+          - "{{ command == 'tv_on' }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: "{{ lights_to_turn_off }}"
+            data:
+              transition: !input transition_time
+      - conditions:
+          - "{{ command == 'on_press' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
+                sequence:
+                  - service: scene_presets.apply_preset
+                    data:
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
+                      targets:
+                        entity_id: "{{ target_lights }}"
+                      shuffle: false
+                      smart_shuffle: false
+              - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: "{{ target_lights }}"
+                    data:
+                      transition: !input transition_time
+                  - service: scene_presets.stop_dynamic_scenes_for_targets
+                    data:
+                      targets:
+                        entity_id: "{{ target_lights }}"
       - conditions:
           - "{{ command == 'on_double_press' }}"
         sequence:
