@@ -10,7 +10,8 @@ blueprint:
       selector:
         device:
           integration: mqtt
-          model: "324131092621"
+          manufacturer: Philips
+          model: "Hue dimmer switch (929002398602)"
           multiple: false
     light:
       name: Lights
@@ -239,8 +240,8 @@ mode: queued
 max_exceeded: silent
 trigger:
   - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_press"
+    topic: "zigbee2mqtt/+/action"
+    payload: "on-press"
     id: on_press
   - platform: mqtt
     topic: zigbee2mqtt/+/action

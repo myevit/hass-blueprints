@@ -9,8 +9,8 @@ blueprint:
       selector:
         device:
           integration: mqtt
-          model:
-            - 324131092621
+          manufacturer: Philips
+          model: "Hue dimmer switch (324131092621)"
           multiple: false
     aux_scene_on:
       name: ON Button Aux Scene
