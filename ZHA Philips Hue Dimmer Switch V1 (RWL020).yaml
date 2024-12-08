@@ -1,16 +1,16 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.9
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.1.20
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
     dimmer_switch:
-      name: Dimmer Switch
-      description: Select your Philips Hue Dimmer Switch
+      name: Dimmer Switch Action Sensor
+      description: Select the action sensor of your Philips Hue Dimmer Switch
       selector:
-        device:
-          integration: mqtt
-          manufacturer: Philips
-          model: "Hue dimmer switch (324131092621)"
+        entity:
+          domain: sensor
+          filter:
+            - integration: mqtt
           multiple: false
 
     aux_scene_on:
@@ -94,20 +94,16 @@ blueprint:
           step: 1
           unit_of_measurement: s
 
-mode: restart
+mode: parallel
 max_exceeded: silent
 trigger:
-  - platform: mqtt
-    topic: "zigbee2mqtt/+/action"
-    value_template: >-
-      {% set device = trigger.topic.split('/')[1] %}
-      {% if device == device_attr(dimmer_switch, 'name') %}
-        {{ trigger.payload }}
-      {% endif %}
+  - platform: state
+    entity_id: !input dimmer_switch
+    id: dimmer_action
 
 action:
   - variables:
-      command: "{{ trigger.payload }}"
+      command: "{{ trigger.to_state.state }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
@@ -122,6 +118,13 @@ action:
         {% else %}
           0
         {% endif %}
+      next_scene: >
+        {% set scene_count = included_scenes | length %}
+        {% if active_scene >= scene_count - 1 %}
+          0
+        {% else %}
+          {{ active_scene + 1 }}
+        {% endif %}
       target_lights: !input light
       hold_press_change: !input hold_press_change
 
@@ -129,16 +132,16 @@ action:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
           - service: scene.turn_on
-            data_template:
+            data:
               transition: !input transition_time
               entity_id: >
-                {{ included_scenes[active_scene] }}
+                {{ included_scenes[active_scene | int] }}
           - service: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
               value: >
-                {{ {"scene": active_scene + 1, "timestamp": as_timestamp(now())} | to_json }}
+                {{ {"scene": next_scene, "timestamp": as_timestamp(now())} | to_json }}
 
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
@@ -239,12 +242,6 @@ action:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_off
-
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: !input reset_after
-      milliseconds: 0
   - service: input_text.set_value
     target:
       entity_id: !input scene_helper
