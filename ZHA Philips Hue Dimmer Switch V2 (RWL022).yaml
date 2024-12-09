@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.5
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.6
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -103,10 +103,10 @@ blueprint:
 mode: parallel
 max_exceeded: silent
 trigger:
-  - platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input dimmer_switch
+  - platform: state
+    entity_id: !input dimmer_switch
+    id: dimmer_action
+
 action:
   - variables:
       command: "{{ trigger.event.data.command }}"
