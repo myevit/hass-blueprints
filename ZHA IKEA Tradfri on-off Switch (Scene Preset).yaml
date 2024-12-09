@@ -1,5 +1,5 @@
 blueprint:
-  name: ZHA IKEA Tradfri on/off Switch (Scene Preset) v0.1.0
+  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v0.1.1
   description: Control lights with a IKEA Tradfri on/off Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
@@ -7,9 +7,10 @@ blueprint:
       name: Dimmer Switch
       description: The dimmer switch to use
       selector:
-        device:
-          integration: zha
-          model: TRADFRI on/off switch
+        entity:
+          domain: sensor
+          filter:
+            - integration: mqtt
           multiple: false
     light:
       name: Lights
@@ -172,13 +173,11 @@ blueprint:
 mode: restart
 max_exceeded: silent
 trigger:
-  - platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input dimmer_switch
+  - platform: state
+    entity_id: !input dimmer_switch
 action:
   - variables:
-      command: "{{ trigger.event.data.command }}"
+      command: "{{ trigger.to_state.state }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
@@ -240,7 +239,7 @@ action:
               targets:
                 entity_id: !input light
       - conditions:
-          - "{{ command == 'move_with_on_off' }}"
+          - "{{ command == 'brightness_move_up' }}"
         sequence:
           - repeat:
               while:
@@ -271,7 +270,7 @@ action:
                 - delay:
                     seconds: !input transition_time
       - conditions:
-          - "{{ command == 'move' }}"
+          - "{{ command == 'brightness_move_down' }}"
         sequence:
           - repeat:
               while:
