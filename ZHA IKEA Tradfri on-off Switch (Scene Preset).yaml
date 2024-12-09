@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v0.1.1
+  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v1.0.0
   description: Control lights with a IKEA Tradfri on/off Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
@@ -8,9 +8,9 @@ blueprint:
       description: The dimmer switch to use
       selector:
         entity:
-          domain: sensor
           filter:
             - integration: mqtt
+            - domain: event
           multiple: false
     light:
       name: Lights
@@ -172,9 +172,10 @@ blueprint:
           mode: slider
 mode: restart
 max_exceeded: silent
-trigger:
-  - platform: state
+triggers:
+  - trigger: state
     entity_id: !input dimmer_switch
+    to: ~
 action:
   - variables:
       command: "{{ trigger.to_state.state }}"
@@ -197,14 +198,14 @@ action:
   - choose:
       - conditions: "{{ command == 'on' }}"
         sequence:
-          - service: scene_presets.stop_dynamic_scenes_for_targets
+          - action: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
                 entity_id: !input light
           - choose:
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
                 sequence:
-                  - service: scene_presets.apply_preset
+                  - action: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
@@ -213,14 +214,14 @@ action:
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'dynamic' }}"
                 sequence:
-                  - service: scene_presets.start_dynamic_scene
+                  - action: scene_presets.start_dynamic_scene
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
                         entity_id: !input light
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
-          - service: input_text.set_value
+          - action: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
@@ -229,12 +230,12 @@ action:
       - conditions:
           - "{{ command == 'off' }}"
         sequence:
-          - service: light.turn_off
+          - action: light.turn_off
             target:
               entity_id: !input light
             data:
               transition: !input transition_time
-          - service: scene_presets.stop_dynamic_scenes_for_targets
+          - action: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
                 entity_id: !input light
@@ -249,7 +250,7 @@ action:
                 - choose:
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
                       sequence:
-                        - service: light.turn_on
+                        - action: light.turn_on
                           target:
                             entity_id:
                               "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -259,7 +260,7 @@ action:
                             transition: !input transition_time
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255 - hold_press_change) | list | length > 0 }}"
                       sequence:
-                        - service: light.turn_on
+                        - action: light.turn_on
                           target:
                             entity_id:
                               "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -280,7 +281,7 @@ action:
                 - choose:
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
                       sequence:
-                        - service: light.turn_on
+                        - action: light.turn_on
                           target:
                             entity_id:
                               "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -290,7 +291,7 @@ action:
                             transition: !input transition_time
                     - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'le', hold_press_change) | list | length > 0 }}"
                       sequence:
-                        - service: light.turn_on
+                        - action: light.turn_on
                           target:
                             entity_id:
                               "{{ expand(target_lights) | selectattr('state', 'eq', 'on')

@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.2.1
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.3.0
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -8,9 +8,9 @@ blueprint:
       description: Select the action sensor of your Philips Hue Dimmer Switch
       selector:
         entity:
-          domain: sensor
           filter:
             - integration: mqtt
+            - domain: event
           multiple: false
 
     aux_scene_on:
@@ -96,11 +96,10 @@ blueprint:
 
 mode: parallel
 max_exceeded: silent
-trigger:
-  - platform: state
+triggers:
+  - trigger: state
     entity_id: !input dimmer_switch
-    id: dimmer_action
-
+    to: ~
 action:
   - variables:
       command: "{{ trigger.to_state.state }}"
@@ -128,13 +127,13 @@ action:
               next_scene: "{{ (current_scene | int + 1) % scene_count }}"
 
           # Activate the current scene
-          - service: scene.turn_on
+          - action: scene.turn_on
             data:
               transition: !input transition_time
               entity_id: "{{ included_scenes[current_scene | int] }}"
 
           # Update the helper with next scene
-          - service: input_text.set_value
+          - action: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
@@ -142,7 +141,7 @@ action:
 
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_on
 
@@ -154,7 +153,7 @@ action:
                   "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
                   | round)  <= 255 }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq',
@@ -166,7 +165,7 @@ action:
                   "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
                   | round)  > 255 }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq',
@@ -177,7 +176,7 @@ action:
 
       - conditions: "{{ command == 'up_double_press' }}"
         sequence:
-          - service: light.turn_on
+          - action: light.turn_on
             target:
               entity_id:
                 "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -194,7 +193,7 @@ action:
                   "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
                   | round)  >= hold_press_change }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq',
@@ -208,7 +207,7 @@ action:
                   | round)  < hold_press_change or (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
                   | round)  >= 1}}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq',
@@ -219,7 +218,7 @@ action:
 
       - conditions: "{{ command == 'down_double_press' }}"
         sequence:
-          - service: light.turn_on
+          - action: light.turn_on
             target:
               entity_id:
                 "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -233,14 +232,14 @@ action:
           - choose:
               - conditions: "{{ state_attr(light, 'brightness') | default(0) <= 25 }}" # 25 is ~10% of 255
                 sequence:
-                  - service: light.turn_off
+                  - action: light.turn_off
                     target:
                       entity_id: !input light
                     data:
                       transition: 0
               - conditions: "{{ state_attr(light, 'brightness') | default(0) > 25 }}"
                 sequence:
-                  - service: light.turn_off
+                  - action: light.turn_off
                     target:
                       entity_id: !input light
                     data:
@@ -248,6 +247,6 @@ action:
 
       - conditions: "{{ command == 'off_double_press' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_off
