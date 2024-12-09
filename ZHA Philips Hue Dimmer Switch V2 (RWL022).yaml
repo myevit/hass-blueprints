@@ -1,5 +1,5 @@
 blueprint:
-  name: Zigbee2MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.4
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.5
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -7,10 +7,10 @@ blueprint:
       name: Dimmer Switch
       description: The dimmer switch to use
       selector:
-        device:
-          integration: mqtt
-          manufacturer: Philips
-          model: "Hue dimmer switch (929002398602)"
+        entity:
+          domain: sensor
+          filter:
+            - integration: mqtt
           multiple: false
     main_scene:
       name: Main Scene
@@ -100,42 +100,16 @@ blueprint:
             - domain:
                 - scene
           multiple: false
-mode: queued
+mode: parallel
 max_exceeded: silent
 trigger:
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "on_double_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_hold"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "up_double_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_hold"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "down_double_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_press"
-  - platform: mqtt
-    topic: zigbee2mqtt/+/action
-    payload: "off_double_press"
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input dimmer_switch
 action:
   - variables:
-      command: "{{ trigger.payload }}"
+      command: "{{ trigger.event.data.command }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
