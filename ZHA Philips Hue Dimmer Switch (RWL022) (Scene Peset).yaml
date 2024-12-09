@@ -244,8 +244,6 @@ max_exceeded: silent
 triggers:
   - trigger: state
     entity_id: !input dimmer_switch
-    to: ~
-
 action:
   - variables:
       command: "{{ trigger.to_state.attributes.event_type }}"
