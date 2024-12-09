@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.2.0"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.12"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -9,17 +9,17 @@ blueprint:
       description: Select the action sensor of your Philips Hue Dimmer Switch
       selector:
         entity:
+          domain: sensor
           filter:
             - integration: mqtt
-            - domain: event
           multiple: false
     light:
       name: Lights
       description: The lights to control
       selector:
         entity:
-          filter:
-            - domain: light
+          domain:
+            - light
           multiple: true
     tv_entity:
       name: TV Entity
@@ -27,9 +27,8 @@ blueprint:
       default: ""
       selector:
         entity:
-          filter:
-            domain:
-              - media_player
+          domain:
+            - media_player
           multiple: false
     lights_when_tv_on:
       name: Lights When TV On
@@ -37,9 +36,8 @@ blueprint:
       default: []
       selector:
         entity:
-          filter:
-            domain:
-              - light
+          domain:
+            - light
           multiple: true
     included_scenes:
       name: Hue Button Scenes
@@ -196,9 +194,8 @@ blueprint:
       description: Please select an Input Text Helper to be used to record the scene sequence in JSON format with timestamp.
       selector:
         entity:
-          filter:
-            domain:
-              - input_text
+          domain:
+            - input_text
           multiple: false
     transition_time:
       name: Transition Time
@@ -241,12 +238,14 @@ blueprint:
         time:
 mode: queued
 max_exceeded: silent
-triggers:
-  - trigger: state
+trigger:
+  - platform: state
     entity_id: !input dimmer_switch
+    id: dimmer_action
+
 action:
   - variables:
-      command: "{{ trigger.to_state.attributes.event_type }}"
+      command: "{{ trigger.to_state.state }}"
       included_scenes: !input included_scenes
       scene_helper: !input scene_helper
       reset_after: !input reset_after
@@ -302,7 +301,7 @@ action:
       - conditions:
           - "{{ lights_to_turn_off | length > 0 }}"
         sequence:
-          - action: light.turn_off
+          - service: light.turn_off
             target:
               entity_id: "{{ lights_to_turn_off }}"
             data:
@@ -311,7 +310,7 @@ action:
       - conditions:
           - "{{ command == 'tv_on' }}"
         sequence:
-          - action: light.turn_off
+          - service: light.turn_off
             target:
               entity_id: "{{ lights_to_turn_off }}"
             data:
@@ -322,7 +321,7 @@ action:
           - choose:
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
-                  - action: scene_presets.apply_preset
+                  - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
                       targets:
@@ -331,26 +330,26 @@ action:
                       smart_shuffle: false
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
-                  - action: light.turn_off
+                  - service: light.turn_off
                     target:
                       entity_id: "{{ target_lights }}"
                     data:
                       transition: !input transition_time
-                  - action: scene_presets.stop_dynamic_scenes_for_targets
+                  - service: scene_presets.stop_dynamic_scenes_for_targets
                     data:
                       targets:
                         entity_id: "{{ target_lights }}"
       - conditions:
           - "{{ command == 'on_hold' }}"
         sequence:
-          - action: scene_presets.stop_dynamic_scenes_for_targets
+          - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
                 entity_id: "{{ target_lights }}"
           - choose:
               - conditions: "{{ (included_scenes[0] | from_json).type == 'static' }}"
                 sequence:
-                  - action: scene_presets.apply_preset
+                  - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
@@ -359,7 +358,7 @@ action:
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
                 sequence:
-                  - action: scene_presets.start_dynamic_scene
+                  - service: scene_presets.start_dynamic_scene
                     data:
                       preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
@@ -372,7 +371,7 @@ action:
           - choose:
               - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
-                  - action: light.turn_on
+                  - service: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -382,7 +381,7 @@ action:
                       transition: !input transition_time
               - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
-                  - action: light.turn_on
+                  - service: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -396,7 +395,7 @@ action:
           - choose:
               - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
                 sequence:
-                  - action: light.turn_on
+                  - service: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -406,7 +405,7 @@ action:
                       transition: !input transition_time
               - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'le', hold_press_change) | list | length > 0 }}"
                 sequence:
-                  - action: light.turn_on
+                  - service: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -416,14 +415,14 @@ action:
                       transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - action: scene_presets.stop_dynamic_scenes_for_targets
+          - service: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
                 entity_id: "{{ target_lights }}"
           - choose:
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
                 sequence:
-                  - action: scene_presets.apply_preset
+                  - service: scene_presets.apply_preset
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
@@ -432,14 +431,14 @@ action:
                       smart_shuffle: false
               - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'dynamic' }}"
                 sequence:
-                  - action: scene_presets.start_dynamic_scene
+                  - service: scene_presets.start_dynamic_scene
                     data:
                       preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
-          - action: input_text.set_value
+          - service: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
