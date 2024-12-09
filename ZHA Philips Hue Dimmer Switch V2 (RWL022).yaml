@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.7
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.6
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -84,7 +84,7 @@ blueprint:
           mode: slider
     aux_scene_on:
       name: ON Button Aux Scene
-      description: Scene will be active on double ON press
+      description: Scene will be active on hold ON press
       selector:
         entity:
           filter:
@@ -93,7 +93,7 @@ blueprint:
           multiple: false
     aux_scene_off:
       name: Off Button Aux Scene
-      description: Scene will be active on double OFF press
+      description: Scene will be active on hold OFF press
       selector:
         entity:
           filter:
@@ -167,16 +167,6 @@ action:
                     data:
                       brightness_pct: 100
                       transition: !input transition_time
-      - conditions: "{{ command == 'up_double_press' }}"
-        sequence:
-          - service: light.turn_on
-            target:
-              entity_id:
-                "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                | map(attribute='entity_id') | list }}"
-            data:
-              brightness_pct: 100
-              transition: !input transition_time
       - conditions:
           - "{{ command == 'down_hold' or command == 'down_press' }}"
         sequence:
@@ -208,16 +198,6 @@ action:
                       brightness_pct: 1
                       transition: !input transition_time
                   - delay: !input transition_time
-      - conditions: "{{ command == 'down_double_press' }}"
-        sequence:
-          - service: light.turn_on
-            target:
-              entity_id:
-                "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                | map(attribute='entity_id') | list }}"
-            data:
-              brightness_pct: 1
-              transition: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
           - service: scene.turn_on
@@ -231,8 +211,13 @@ action:
             data:
               value: >
                 {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
-      - conditions: "{{ command == 'off_double_press' }}"
+      - conditions: "{{ command == 'off_hold' }}"
         sequence:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_off
+      - conditions: "{{ command == 'on_hold' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_on
