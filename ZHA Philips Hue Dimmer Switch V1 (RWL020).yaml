@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.2.0
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.2.1
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -230,11 +230,21 @@ action:
 
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: light.turn_off
-            target:
-              entity_id: !input light
-            data:
-              transition: !input transition_time
+          - choose:
+              - conditions: "{{ state_attr(light, 'brightness') | default(0) <= 25 }}" # 25 is ~10% of 255
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input light
+                    data:
+                      transition: 0
+              - conditions: "{{ state_attr(light, 'brightness') | default(0) > 25 }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: !input light
+                    data:
+                      transition: !input transition_time
 
       - conditions: "{{ command == 'off_double_press' }}"
         sequence:
