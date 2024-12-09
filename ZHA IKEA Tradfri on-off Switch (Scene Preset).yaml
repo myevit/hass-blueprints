@@ -183,7 +183,7 @@ action:
       reset_after: !input reset_after
       target_lights: !input light
       hold_press_change: !input hold_press_change
-      active_scene: >
+      current_preset: >
         {% set data = states(scene_helper) %}
         {% if data != "unknown" %}
           {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
@@ -225,7 +225,7 @@ action:
               entity_id: !input scene_helper
             data:
               value: >
-                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+                {{ {"scene": (current_preset + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
       - conditions:
           - "{{ command == 'off' }}"
         sequence:
