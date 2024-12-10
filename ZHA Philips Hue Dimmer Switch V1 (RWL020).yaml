@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.2.3
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v2.2.4
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -140,38 +140,29 @@ action:
               entity_id: !input scene_helper
             data:
               value: '{"scene": {{ next_scene }}, "timestamp": {{ as_timestamp(now()) }}}'
-
-      - conditions: "{{ command == 'on_double_press' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input aux_scene_on
-
       - conditions:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
           - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  <= 255 }}"
+              - conditions: >-
+                  {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
+                  {% set max_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | max | default(0) %}
+                  {{ (max_brightness + ((hold_press_change/100)*254) | round) <= 255 }}
                 sequence:
                   - service: light.turn_on
                     target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq',
-                        'on') | map(attribute='entity_id') | list }}"
+                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_step_pct: "{{ hold_press_change }}"
                       transition: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  > 255 }}"
+              - conditions: >-
+                  {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
+                  {% set max_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | max | default(0) %}
+                  {{ (max_brightness + ((hold_press_change/100)*254) | round) > 255 }}
                 sequence:
                   - service: light.turn_on
                     target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq',
-                        'on') | map(attribute='entity_id') | list }}"
+                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_pct: 100
                       transition: !input transition_time
@@ -180,29 +171,25 @@ action:
           - "{{ command == 'down_hold' or command == 'down_press' }}"
         sequence:
           - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  >= hold_press_change }}"
+              - conditions: >-
+                  {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
+                  {% set min_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | min | default(0) %}
+                  {{ min_brightness > 25 }}
                 sequence:
                   - service: light.turn_on
                     target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq',
-                        'on') | map(attribute='entity_id') | list }}"
+                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
                       transition: !input transition_time
-
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  < hold_press_change or (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  >= 1}}"
+              - conditions: >-
+                  {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
+                  {% set min_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | min | default(0) %}
+                  {{ min_brightness <= 25 }}
                 sequence:
                   - service: light.turn_on
                     target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq',
-                        'on') | map(attribute='entity_id') | list }}"
+                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_pct: 1
                       transition: !input transition_time
