@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.1.1"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.1.2"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -207,10 +207,17 @@ blueprint:
           step: 0.1
           unit_of_measurement: sec
           mode: slider
+    brightness_zigbee:
+      name: Brightness Control via Zigbee2MQTT
+      description: If enabled, brightness will be controlled directly by Zigbee2MQTT instead of the blueprint
+      default: false
+      selector:
+        boolean:
     hold_press_change:
       name: Hold Press Change
       description: Transition step between changes of the light state (appied on ON/OFF/+/-)
       default: 18
+      show_if: "{{ not brightness_zigbee }}"
       selector:
         number:
           min: 0.0
@@ -235,12 +242,6 @@ blueprint:
       default: ""
       selector:
         time:
-    brightness_zigbee:
-      name: Brightness Control via Zigbee2MQTT
-      description: If enabled, brightness will be controlled directly by Zigbee2MQTT instead of the blueprint
-      default: false
-      selector:
-        boolean:
 mode: queued
 max_exceeded: silent
 trigger:
