@@ -217,7 +217,7 @@ blueprint:
       name: Hold Press Change
       description: Transition step between changes of the light state (appied on ON/OFF/+/-)
       default: 18
-      show_if: "{{ not brightness_zigbee }}"
+      enabled: "{{ not brightness_zigbee }}"
       selector:
         number:
           min: 0.0
