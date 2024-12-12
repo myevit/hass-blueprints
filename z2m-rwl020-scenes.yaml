@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.0.0
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.0.1
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -108,6 +108,66 @@ trigger:
     device_id: !input dimmer_switch
     type: action
     subtype: on_press_release
+    id: on_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_hold_release
+    id: on_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_press_release
+    id: off_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_hold_release
+    id: off_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_press_release
+    id: up_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_hold_release
+    id: up_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_press_release
+    id: down_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_hold_release
+    id: down_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_0
+    id: recall_0
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_1
+    id: recall_1
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_press
     id: on_press
   - trigger: device
     domain: mqtt
@@ -119,20 +179,8 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: on_hold_release
-    id: on_hold_release
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
     subtype: off_press
     id: off_press
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: off_press_release
-    id: off_press_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -143,20 +191,8 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: off_hold_release
-    id: off_hold_release
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
     subtype: up_press
     id: up_press
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: up_press_release
-    id: up_press_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -167,32 +203,14 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: up_hold_release
-    id: up_hold_release
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
     subtype: down_press
     id: down_press
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: down_press_release
-    id: down_press_release
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
     subtype: down_hold
     id: down_hold
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: down_hold_release
-    id: down_hold_release
 
 action:
   - variables:

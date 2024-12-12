@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.1
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.2
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -166,6 +166,54 @@ trigger:
     type: action
     subtype: recall_1
     id: recall_1
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_press
+    id: on_press
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_hold
+    id: on_hold
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_press
+    id: off_press
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_hold
+    id: off_hold
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_press
+    id: up_press
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_hold
+    id: up_hold
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_press
+    id: down_press
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_hold
+    id: down_hold
 
 variables:
   command: "{{ trigger.id }}"
