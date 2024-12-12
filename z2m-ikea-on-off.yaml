@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v3.0.2
+  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v3.0.3
   description: Control lights with a IKEA Tradfri on/off Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
@@ -176,7 +176,7 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: on
+    subtype: "on"
     id: on_press
   - trigger: device
     domain: mqtt
@@ -194,7 +194,7 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: off
+    subtype: "off"
     id: off_press
   - trigger: device
     domain: mqtt
