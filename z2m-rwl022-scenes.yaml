@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.0
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.1
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -186,104 +186,106 @@ variables:
     {% endif %}
   target_lights: !input light
   hold_press_change: !input hold_press_change
-  - choose:
-      - conditions: "{{ command == 'on_press' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input main_scene
-            data:
-              transition: !input transition_time
-      - conditions: "{{ command == 'on_double_press' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input aux_scene_on
-      - conditions:
-          - "{{ command == 'up_hold' or command == 'up_press'}}"
-          - "{{ not (brightness_zigbee | default(false)) }}"
-        sequence:
-          - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  <= 255 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_step_pct: "{{ hold_press_change }}"
-                      transition: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
-                  | round)  > 255 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_pct: 100
-                      transition: !input transition_time
-      - conditions:
-          - "{{ command == 'down_hold' or command == 'down_press' }}"
-          - "{{ not (brightness_zigbee | default(false)) }}"
-        sequence:
-          - choose:
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  >= hold_press_change }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_step_pct: "{{ -hold_press_change }}"
-                      transition: !input transition_time
-                  - delay: !input transition_time
-              - conditions:
-                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
-                  | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
-                  - ((hold_press_change/100)*254) | round)  >= 1}}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_pct: 1
-                      transition: !input transition_time
-                  - delay: !input transition_time
-      - conditions: "{{ command == 'off_press' }}"
-        sequence:
-          - service: scene.turn_on
-            data_template:
-              transition: !input transition_time
-              entity_id: >
-                {{ included_scenes[active_scene] }}
-          - service: input_text.set_value
-            target:
-              entity_id: !input scene_helper
-            data:
-              value: >
-                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
-      - conditions: "{{ command == 'off_hold' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input aux_scene_off
-            data:
-              transition: !input transition_time
-      - conditions: "{{ command == 'on_hold' }}"
-        sequence:
-          - service: scene.turn_on
-            target:
-              entity_id: !input aux_scene_on
-            data:
-              transition: !input transition_time
+
+action:
+  choose:
+    - conditions: "{{ command == 'on_press' }}"
+      sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: !input main_scene
+          data:
+            transition: !input transition_time
+    - conditions: "{{ command == 'on_double_press' }}"
+      sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: !input aux_scene_on
+    - conditions:
+        - "{{ command == 'up_hold' or command == 'up_press'}}"
+        - "{{ not (brightness_zigbee | default(false)) }}"
+      sequence:
+        - choose:
+            - conditions:
+                "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
+                | round)  <= 255 }}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id:
+                      "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                      | map(attribute='entity_id') | list }}"
+                  data:
+                    brightness_step_pct: "{{ hold_press_change }}"
+                    transition: !input transition_time
+            - conditions:
+                "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
+                | round)  > 255 }}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id:
+                      "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                      | map(attribute='entity_id') | list }}"
+                  data:
+                    brightness_pct: 100
+                    transition: !input transition_time
+    - conditions:
+        - "{{ command == 'down_hold' or command == 'down_press' }}"
+        - "{{ not (brightness_zigbee | default(false)) }}"
+      sequence:
+        - choose:
+            - conditions:
+                "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
+                | round)  >= hold_press_change }}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id:
+                      "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                      | map(attribute='entity_id') | list }}"
+                  data:
+                    brightness_step_pct: "{{ -hold_press_change }}"
+                    transition: !input transition_time
+                - delay: !input transition_time
+            - conditions:
+                "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
+                | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
+                - ((hold_press_change/100)*254) | round)  >= 1}}"
+              sequence:
+                - service: light.turn_on
+                  target:
+                    entity_id:
+                      "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                      | map(attribute='entity_id') | list }}"
+                  data:
+                    brightness_pct: 1
+                    transition: !input transition_time
+                - delay: !input transition_time
+    - conditions: "{{ command == 'off_press' }}"
+      sequence:
+        - service: scene.turn_on
+          data_template:
+            transition: !input transition_time
+            entity_id: >
+              {{ included_scenes[active_scene] }}
+        - service: input_text.set_value
+          target:
+            entity_id: !input scene_helper
+          data:
+            value: >
+              {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+    - conditions: "{{ command == 'off_hold' }}"
+      sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: !input aux_scene_off
+          data:
+            transition: !input transition_time
+    - conditions: "{{ command == 'on_hold' }}"
+      sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: !input aux_scene_on
+          data:
+            transition: !input transition_time
