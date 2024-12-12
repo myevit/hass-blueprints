@@ -248,13 +248,13 @@ trigger:
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: on_press
+    subtype: on_press_release
     id: on_press
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: on_hold
+    subtype: on_hold_release
     id: on_hold
   - trigger: device
     domain: mqtt
