@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.1.3"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.0"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -249,31 +249,61 @@ trigger:
     device_id: !input dimmer_switch
     type: action
     subtype: on_press_release
-    id: on_press
+    id: on_press_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: on_hold
-    id: on_hold
+    subtype: on_hold_release
+    id: on_hold_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: off_press
-    id: off_press
+    subtype: off_press_release
+    id: off_press_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: up_press
-    id: up_press
+    subtype: off_hold_release
+    id: off_hold_release
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
-    subtype: down_press
-    id: down_press
+    subtype: up_press_release
+    id: up_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_hold_release
+    id: up_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_press_release
+    id: down_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_hold_release
+    id: down_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_0
+    id: recall_0
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_1
+    id: recall_1
 
 variables:
   command: "{{ trigger.id }}"

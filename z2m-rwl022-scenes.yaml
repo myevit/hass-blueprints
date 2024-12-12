@@ -1,0 +1,289 @@
+blueprint:
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.0
+  description: Control lights with a Philips Hue Dimmer Switch
+  domain: automation
+  input:
+    dimmer_switch:
+      name: Dimmer Switch
+      description: The dimmer switch to use
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+          multiple: false
+    main_scene:
+      name: Main Scene
+      description: Scene will be active on top press
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: false
+    light:
+      name: Lights
+      description: The lights to control with + / - and to turn off
+      selector:
+        entity:
+          domain:
+            - light
+          multiple: false
+    included_scenes:
+      name: Hue Button Scenes
+      description: Scenes to be included
+      default: []
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: true
+    scene_helper:
+      name: Scene helper
+      description: Please select a Input Text Helper to be used to record the scene sequence.
+      selector:
+        entity:
+          domain:
+            - input_text
+          multiple: false
+    transition_time:
+      name: Transition time
+      description: Transition time when changes
+      default: 1
+      selector:
+        number:
+          min: 0.0
+          max: 3.0
+          step: 0.1
+          unit_of_measurement: sec
+          mode: slider
+    brightness_zigbee:
+      name: Brightness Control via Zigbee2MQTT
+      description: If enabled, brightness will be controlled directly by Zigbee2MQTT instead of the blueprint
+      default: false
+      selector:
+        boolean:
+    hold_press_change:
+      name: Hold press change
+      description: Transition time between changes
+      default: 17
+      selector:
+        number:
+          min: 0.0
+          max: 25.0
+          step: 1.0
+          unit_of_measurement: "%"
+          mode: slider
+    reset_after:
+      name: Reset After
+      description:
+        Timeout can be set after which the order is reset to the first
+        scene.
+      default: 5
+      selector:
+        number:
+          min: 1.0
+          max: 120.0
+          step: 1.0
+          unit_of_measurement: s
+          mode: slider
+    aux_scene_on:
+      name: ON Button Aux Scene
+      description: Scene will be active on hold ON press
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: false
+    aux_scene_off:
+      name: Off Button Aux Scene
+      description: Scene will be active on hold OFF press
+      selector:
+        entity:
+          filter:
+            - domain:
+                - scene
+          multiple: false
+trigger:
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_press_release
+    id: on_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: on_hold_release
+    id: on_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_press_release
+    id: off_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: off_hold_release
+    id: off_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_press_release
+    id: up_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_hold_release
+    id: up_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_press_release
+    id: down_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_hold_release
+    id: down_hold_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_0
+    id: recall_0
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: recall_1
+    id: recall_1
+
+variables:
+  command: "{{ trigger.id }}"
+  included_scenes: !input included_scenes
+  scene_helper: !input scene_helper
+  reset_after: !input reset_after
+  main_scene: !input main_scene
+  active_scene: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
+            {{ (data | from_json).scene }}
+          {% else %}
+          0
+          {% endif %}
+        {% else %}
+          0
+        {% endif %}
+      target_lights: !input light
+      hold_press_change: !input hold_press_change
+  - choose:
+      - conditions: "{{ command == 'on_press' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input main_scene
+            data:
+              transition: !input transition_time
+      - conditions: "{{ command == 'on_double_press' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_on
+      - conditions:
+          - "{{ command == 'up_hold' or command == 'up_press'}}"
+          - "{{ not (brightness_zigbee | default(false)) }}"
+        sequence:
+          - choose:
+              - conditions:
+                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
+                  | round)  <= 255 }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id:
+                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                        | map(attribute='entity_id') | list }}"
+                    data:
+                      brightness_step_pct: "{{ hold_press_change }}"
+                      transition: !input transition_time
+              - conditions:
+                  "{{ (state_attr(target_lights, 'brightness') + ((hold_press_change/100)*254)
+                  | round)  > 255 }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id:
+                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                        | map(attribute='entity_id') | list }}"
+                    data:
+                      brightness_pct: 100
+                      transition: !input transition_time
+      - conditions:
+          - "{{ command == 'down_hold' or command == 'down_press' }}"
+          - "{{ not (brightness_zigbee | default(false)) }}"
+        sequence:
+          - choose:
+              - conditions:
+                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
+                  | round)  >= hold_press_change }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id:
+                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                        | map(attribute='entity_id') | list }}"
+                    data:
+                      brightness_step_pct: "{{ -hold_press_change }}"
+                      transition: !input transition_time
+                  - delay: !input transition_time
+              - conditions:
+                  "{{ (state_attr(target_lights, 'brightness') - ((hold_press_change/100)*254)
+                  | round)  < hold_press_change or (state_attr(target_lights, 'brightness')
+                  - ((hold_press_change/100)*254) | round)  >= 1}}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id:
+                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
+                        | map(attribute='entity_id') | list }}"
+                    data:
+                      brightness_pct: 1
+                      transition: !input transition_time
+                  - delay: !input transition_time
+      - conditions: "{{ command == 'off_press' }}"
+        sequence:
+          - service: scene.turn_on
+            data_template:
+              transition: !input transition_time
+              entity_id: >
+                {{ included_scenes[active_scene] }}
+          - service: input_text.set_value
+            target:
+              entity_id: !input scene_helper
+            data:
+              value: >
+                {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
+      - conditions: "{{ command == 'off_hold' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_off
+            data:
+              transition: !input transition_time
+      - conditions: "{{ command == 'on_hold' }}"
+        sequence:
+          - service: scene.turn_on
+            target:
+              entity_id: !input aux_scene_on
+            data:
+              transition: !input transition_time
