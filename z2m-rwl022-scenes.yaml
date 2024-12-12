@@ -174,18 +174,18 @@ variables:
   reset_after: !input reset_after
   main_scene: !input main_scene
   active_scene: >
-        {% set data = states(scene_helper) %}
-        {% if data != "unknown" %}
-          {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
-            {{ (data | from_json).scene }}
-          {% else %}
-          0
-          {% endif %}
-        {% else %}
-          0
-        {% endif %}
-      target_lights: !input light
-      hold_press_change: !input hold_press_change
+    {% set data = states(scene_helper) %}
+    {% if data != "unknown" %}
+      {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
+        {{ (data | from_json).scene }}
+      {% else %}
+        0
+      {% endif %}
+    {% else %}
+      0
+    {% endif %}
+  target_lights: !input light
+  hold_press_change: !input hold_press_change
   - choose:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
