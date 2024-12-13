@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.7"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.8"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -555,21 +555,6 @@ action:
           - "{{ command == 'up_hold' or command == 'down_hold' }}"
           - "{{ not (brightness_zigbee | default(false)) }}"
         sequence:
-          - service: persistent_notification.create
-            data:
-              message: >
-                Debug Info:
-                Command: {{ command }}
-                Lights: {{ target_lights }}
-                On Lights: {{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
-                Brightness Check: {{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length }}
-                Hold Press Change: {{ hold_press_change }}
-          - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
-                sequence:
-                  - service: light.turn_on
-                    target:
-                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_step_pct: "{{ hold_press_change if command == 'up_hold' else -hold_press_change }}"
-                      transition: !input transition_time
+          - service: light.toggle
+            target:
+              entity_id: "{{ target_lights[0] }}"
