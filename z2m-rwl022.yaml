@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.7"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.8"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -432,13 +432,29 @@ action:
           - choose:
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
                 sequence:
-                  - action: scene_presets.apply_preset
+                  - action: scene_presets.stop_dynamic_scenes_for_targets
                     data:
-                      preset_id: "{{ (included_scenes[0] | from_json).preset_id if included_scenes else '' }}"
                       targets:
                         entity_id: "{{ target_lights }}"
-                      shuffle: false
-                      smart_shuffle: false
+                  - choose:
+                      - conditions: "{{ (included_scenes[0] | from_json).type == 'static' or (included_scenes[0] | from_json).type == '' }}"
+                        sequence:
+                          - action: scene_presets.apply_preset
+                            data:
+                              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
+                              targets:
+                                entity_id: "{{ target_lights }}"
+                              shuffle: false
+                              smart_shuffle: false
+                      - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
+                        sequence:
+                          - action: scene_presets.start_dynamic_scene
+                            data:
+                              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
+                              targets:
+                                entity_id: "{{ target_lights }}"
+                              transition: !input dynamic_transition
+                              interval: !input dynamic_interval
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length > 0 }}"
                 sequence:
                   - action: light.turn_off
