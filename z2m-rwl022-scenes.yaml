@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.4
+  name: MQTT Philips Hue Dimmer Switch (RWL022) v3.0.5
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -130,24 +130,24 @@ trigger:
   #   type: action
   #   subtype: off_hold_release
   #   id: off_hold_release
-  # - trigger: device
-  #   domain: mqtt
-  #   device_id: !input dimmer_switch
-  #   type: action
-  #   subtype: up_press_release
-  #   id: up_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: up_press_release
+    id: up_press_release
   # - trigger: device
   #   domain: mqtt
   #   device_id: !input dimmer_switch
   #   type: action
   #   subtype: up_hold_release
   #   id: up_hold_release
-  # - trigger: device
-  #   domain: mqtt
-  #   device_id: !input dimmer_switch
-  #   type: action
-  #   subtype: down_press_release
-  #   id: down_press_release
+  - trigger: device
+    domain: mqtt
+    device_id: !input dimmer_switch
+    type: action
+    subtype: down_press_release
+    id: down_press_release
   # - trigger: device
   #   domain: mqtt
   #   device_id: !input dimmer_switch
@@ -190,24 +190,24 @@ trigger:
     type: action
     subtype: off_hold
     id: off_hold
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: up_press
-    id: up_press
+  # - trigger: device
+  #   domain: mqtt
+  #   device_id: !input dimmer_switch
+  #   type: action
+  #   subtype: up_press
+  #   id: up_press
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: up_hold
     id: up_hold
-  - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: down_press
-    id: down_press
+  # - trigger: device
+  #   domain: mqtt
+  #   device_id: !input dimmer_switch
+  #   type: action
+  #   subtype: down_press
+  #   id: down_press
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -245,7 +245,7 @@ action:
           data:
             transition: !input transition_time
     - conditions:
-        - "{{ command == 'up_hold' or command == 'up_press'}}"
+        - "{{ command == 'up_hold' or command == 'up_press_release'}}"
         - "{{ not (brightness_zigbee | default(false)) }}"
       sequence:
         - choose:
@@ -274,7 +274,7 @@ action:
                     brightness_pct: 100
                     transition: !input transition_time
     - conditions:
-        - "{{ command == 'down_hold' or command == 'down_press' }}"
+        - "{{ command == 'down_hold' or command == 'down_press_release' }}"
         - "{{ not (brightness_zigbee | default(false)) }}"
       sequence:
         - choose:
