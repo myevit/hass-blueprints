@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v3.0.5
+  name: MQTT IKEA Tradfri on/off Switch (Scene Preset) v3.0.6
   description: Control lights with a IKEA Tradfri on/off Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
   input:
@@ -171,6 +171,7 @@ blueprint:
           mode: slider
 mode: queued
 max_exceeded: silent
+queue_size: 1
 trigger:
   - trigger: device
     domain: mqtt
@@ -210,6 +211,13 @@ action:
       reset_after: !input reset_after
       target_lights: !input light
       hold_press_change: !input hold_press_change
+      last_action_time: >
+        {% set data = states(scene_helper) %}
+        {% if data != "unknown" %}
+          {{ (data | from_json).timestamp }}
+        {% else %}
+          0
+        {% endif %}
       current_preset: >
         {% set data = states(scene_helper) %}
         {% if data != "unknown" %}
@@ -222,6 +230,13 @@ action:
           0
         {% endif %}
   - choose:
+      - conditions:
+          - >
+            {{ as_timestamp(now()) - last_action_time < 0.1 and 
+               not command.endswith('_move_up') and
+               not command.endswith('_move_down') }}
+        sequence:
+          - stop: "Debouncing action"
       - conditions: "{{ command == 'on_press' }}"
         sequence:
           - service: scene_presets.stop_dynamic_scenes_for_targets
