@@ -196,12 +196,12 @@ trigger:
     type: action
     subtype: "off"
     id: off_press
-  {# - trigger: device
-    domain: mqtt
-    device_id: !input dimmer_switch
-    type: action
-    subtype: brightness_stop
-    id: brightness_stop #}
+  # - trigger: device
+  #   domain: mqtt
+  #   device_id: !input dimmer_switch
+  #   type: action
+  #   subtype: brightness_stop
+  #   id: brightness_stop
 action:
   - variables:
       command: "{{ trigger.id }}"
