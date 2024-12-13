@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.2"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.2.3"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -250,31 +250,31 @@ trigger:
     type: action
     subtype: on_press_release
     id: on_press_release
-  - trigger: device
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: on_hold_release
-    id: on_hold_release
-  - trigger: device
+    id: on_hold_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: off_press_release
-    id: off_press_release
-  - trigger: device
+    id: off_press_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: off_hold_release
-    id: off_hold_release
-  - trigger: device
+    id: off_hold_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: up_press_release
-    id: up_press_release
-  - trigger: device
+    id: up_press_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
@@ -285,14 +285,14 @@ trigger:
     device_id: !input dimmer_switch
     type: action
     subtype: down_press_release
-    id: down_press_release
-  - trigger: device
+    id: down_press_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: down_hold_release
-    id: down_hold_release
-  - trigger: device
+    id: down_hold_release #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
@@ -303,13 +303,13 @@ trigger:
     device_id: !input dimmer_switch
     type: action
     subtype: recall_1
-    id: recall_1
-  - trigger: device
+    id: recall_1 #}
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: on_press
-    id: on_press
+    id: on_press #}
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -322,12 +322,12 @@ trigger:
     type: action
     subtype: off_press
     id: off_press
-  - trigger: device
+  {# - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
     type: action
     subtype: off_hold
-    id: off_hold
+    id: off_hold #}
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -428,7 +428,7 @@ action:
             data:
               transition: !input transition_time
       - conditions:
-          - "{{ command == 'on_press' }}"
+          - "{{ command == 'on_press_release' }}"
         sequence:
           - choose:
               - conditions: "{{ target_lights | length > 0 and expand(target_lights) | selectattr('state', 'eq', 'on') | list | length == 0 }}"
