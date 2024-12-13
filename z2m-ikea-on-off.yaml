@@ -255,7 +255,7 @@ action:
                 {{ {
                     "scene": (current_preset + 1) % included_scenes | length,
                     "timestamp": as_timestamp(now()),
-                    "type": (included_scenes[(current_preset + 1) % included_scenes | length] | from_json).type
+                    "type": (included_scenes[current_preset] | from_json).type
                    } | to_json }}
       - conditions:
           - "{{ command == 'off_press' }}"
