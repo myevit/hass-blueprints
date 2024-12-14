@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.5.2"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.5.3"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -342,7 +342,7 @@ variables:
   brightness_zigbee: !input brightness_zigbee
   tv_time_start: !input tv_time_start
   tv_time_end: "03:00"
-  press_change: 25
+  press_change: 18
   transition_time: 0.8
   is_tv_time: >
     {% set now = now().strftime('%H:%M') %}
@@ -394,20 +394,17 @@ variables:
       0
     {% endif %}
   current_scene_info: "{{ included_scenes[last_preset_index] | from_json }}"
-  next_preset_index: >
+  next_preset_index: >-
     {% if command == 'off_press' %}
       {{ (last_preset_index + 1) % (included_scenes | length) }}
+    {% elif command in ['on_press_release', 'on_hold'] %}
+      0
     {% else %}
       {{ last_preset_index }}
-    {% endif %},
+    {% endif %}
 
 action:
   - choose:
-      - conditions:
-          - >
-            {{ as_timestamp(now()) - last_action_time < (transition_time | float) }}
-        sequence:
-          - stop: "Debouncing action"
       - conditions:
           - "{{ lights_to_turn_off | length > 0 }}"
         sequence:
