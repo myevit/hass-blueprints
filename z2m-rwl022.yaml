@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.3.7"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.5.0"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -342,7 +342,7 @@ variables:
   brightness_zigbee: !input brightness_zigbee
   tv_time_start: !input tv_time_start
   tv_time_end: "03:00"
-  hold_press_change: 25
+  press_change: 25
   transition_time: 0.8
   is_tv_time: >
     {% set now = now().strftime('%H:%M') %}
@@ -375,16 +375,16 @@ variables:
     {% else %}
       []
     {% endif %}
-  current_preset: >
+  last_preset_index: >
     {% set data = states(scene_helper) %}
     {% if data != "unknown" %}
       {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
         {{ (data | from_json).scene }}
       {% else %}
-      1
+      0
       {% endif %}
     {% else %}
-      1
+      0
     {% endif %}
   last_action_time: >
     {% set data = states(scene_helper) %}
@@ -393,6 +393,8 @@ variables:
     {% else %}
       0
     {% endif %}
+  current_scene_info: "{{ included_scenes[last_preset_index] | from_json }}"
+  next_preset_index: "{{ (last_preset_index + 1) % (included_scenes | length) }}"
 
 action:
   - choose:
@@ -485,76 +487,64 @@ action:
                       transition: !input dynamic_transition
                       interval: !input dynamic_interval
       - conditions:
-          - "{{ command == 'up_hold' or command == 'up_press_release'}}"
-          - "{{ not (brightness_zigbee | default(false)) }}"
+          - "{{ command in ['up_hold', 'up_press_release', 'down_hold', 'down_press_release'] }}"
         sequence:
+          - variables:
+              current_brightness: >
+                {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') %}
+                {% set avg_brightness = lights | map(attribute='attributes.brightness') | list | average | default(128, true) %}
+                {{ avg_brightness | int }}
+              new_brightness: >
+                {% set step = press_change if command in ['up_hold', 'up_press_release'] else -press_change %}
+                {% set target = current_brightness + (step * 2.55) %}
+                {{ ([1, target | int, 255] | sort)[1] }}
           - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - (hold_press_change * 2.55)) | list | length > 0 }}"
+              # Handle static scenes
+              - conditions:
+                  - "{{ current_scene_info.type == 'static' or not current_scene_info.type }}"
+                  - "{{ not (brightness_zigbee | default(false)) }}"
                 sequence:
                   - action: light.turn_on
                     target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
+                      entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
-                      brightness_step_pct: "{{ hold_press_change }}"
+                      brightness: "{{ new_brightness }}"
                       transition: "{{ transition_time }}"
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255 - (hold_press_change * 2.55)) | list | length > 0 }}"
+
+              # Handle dynamic scenes (no brightness_zigbee check)
+              - conditions:
+                  - "{{ current_scene_info.type == 'dynamic' }}"
                 sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
+                  - action: scene_presets.start_dynamic_scene
                     data:
-                      brightness_pct: 100
-                      transition: "{{ transition_time }}"
+                      preset_id: "{{ current_scene_info.preset_id }}"
+                      targets:
+                        entity_id: "{{ target_lights }}"
+                      transition: !input dynamic_transition
+                      interval: !input dynamic_interval
+                      brightness: "{{ new_brightness }}"
       - conditions:
-          - "{{ command == 'down_hold' or command == 'down_press_release' }}"
-          - "{{ not (brightness_zigbee | default(false)) }}"
-        sequence:
-          - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
-                sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_step_pct: "{{ -hold_press_change }}"
-                      transition: "{{ transition_time }}"
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'le', hold_press_change) | list | length > 0 }}"
-                sequence:
-                  - action: light.turn_on
-                    target:
-                      entity_id:
-                        "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
-                        | map(attribute='entity_id') | list }}"
-                    data:
-                      brightness_pct: 1
-                      transition: "{{ transition_time }}"
-      - conditions: "{{ command == 'off_press' }}"
+          - "{{ command == 'off_press' }}"
         sequence:
           - action: scene_presets.stop_dynamic_scenes_for_targets
             data:
               targets:
                 entity_id: "{{ target_lights }}"
           - choose:
-              - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'static' }}"
+              - conditions: "{{ (included_scenes[last_preset_index] | from_json).type == 'static' }}"
                 sequence:
                   - action: scene_presets.apply_preset
                     data:
-                      preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
+                      preset_id: "{{ (included_scenes[next_preset_index] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
-              - conditions: "{{ (included_scenes[current_preset] | from_json).type == 'dynamic' }}"
+              - conditions: "{{ (included_scenes[last_preset_index] | from_json).type == 'dynamic' }}"
                 sequence:
                   - action: scene_presets.start_dynamic_scene
                     data:
-                      preset_id: "{{ (included_scenes[current_preset] | from_json).preset_id }}"
+                      preset_id: "{{ (included_scenes[next_preset_index] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
@@ -565,7 +555,6 @@ action:
             data:
               value: >
                 {{ {
-                  "scene": (current_preset + 1) % included_scenes | length,
+                  "scene": next_preset_index,
                   "timestamp": as_timestamp(now()),
-                  "type": (included_scenes[current_preset] | from_json).type
                 } | to_json }}
