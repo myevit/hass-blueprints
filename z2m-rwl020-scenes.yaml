@@ -318,7 +318,7 @@ action:
               transition: >-
                 {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
                 {% set avg_brightness = (lights | map(attribute='attributes.brightness') | select('number') | list | sum) / (lights | length) %}
-                {{ 0.0 if avg_brightness < 13 else transition_time }}
+                {{ 0.0 if avg_brightness < 25 else transition_time }}
       - conditions: "{{ command == 'off_hold' }}"
         sequence:
           - service: scene.turn_on
