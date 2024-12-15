@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.5
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.6
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
