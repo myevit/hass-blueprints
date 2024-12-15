@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.2
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.4
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -221,6 +221,7 @@ action:
       scene_count: "{{ included_scenes | length }}"
       target_lights: !input light
       hold_press_change: !input hold_press_change
+      transition_time: !input transition_time
       current_scene: >-
         {% set data = states(scene_helper) %}
         {% if data != "unknown" and data != "" %}
@@ -243,7 +244,7 @@ action:
           # Activate the current scene
           - service: scene.turn_on
             data:
-              transition: !input transition_time
+              transition: transition_time
               entity_id: "{{ included_scenes[current_scene | int] }}"
 
           # Update the helper with next scene
@@ -267,7 +268,7 @@ action:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_step_pct: "{{ hold_press_change }}"
-                      transition: !input transition_time
+                      transition: transition_time
               - conditions: >-
                   {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
                   {% set max_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | max | default(0) %}
@@ -278,7 +279,7 @@ action:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_pct: 100
-                      transition: !input transition_time
+                      transition: transition_time
 
       - conditions:
           - "{{ command == 'down_hold' or command == 'down_press_release' }}"
@@ -295,7 +296,7 @@ action:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
-                      transition: !input transition_time
+                      transition: transition_time
               - conditions: >-
                   {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
                   {% set min_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | min | default(0) %}
@@ -306,7 +307,7 @@ action:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
                       brightness_pct: 1
-                      transition: !input transition_time
+                      transition: transition_time
 
       - conditions: "{{ command == 'off_press_release' }}"
         sequence:
@@ -314,18 +315,25 @@ action:
             target:
               entity_id: !input light
             data:
-              transition: !input transition_time
+              transition: >
+                {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | list %}
+                {% set avg_brightness = (lights | map(attribute='attributes.brightness') | select('number') | list | sum) / (lights | length) %}
+                {% if avg_brightness < 13 %}
+                  0
+                {% else %}
+                  {{ transition_time }}
+                {% endif %}
       - conditions: "{{ command == 'off_hold' }}"
         sequence:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_off
             data:
-              transition: !input transition_time
+              transition: transition_time
       - conditions: "{{ command == 'on_hold' }}"
         sequence:
           - service: scene.turn_on
             target:
               entity_id: !input aux_scene_on
             data:
-              transition: !input transition_time
+              transition: transition_time
