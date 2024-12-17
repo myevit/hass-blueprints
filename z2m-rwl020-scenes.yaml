@@ -1,5 +1,5 @@
 blueprint:
-  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.7
+  name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.8
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
   input:
@@ -100,7 +100,7 @@ blueprint:
           step: 1
           unit_of_measurement: s
 
-mode: queued
+mode: single
 max_exceeded: silent
 trigger:
   - trigger: device
@@ -334,3 +334,5 @@ action:
               entity_id: !input aux_scene_on
             data:
               transition: "{{ transition_time }}"
+  - delay:
+      seconds: "{{ transition_time }}"
