@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.6.0"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.6.1"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -565,8 +565,7 @@ action:
           - action: select.select_option
             data:
               option: fireplace
-            target:
-              entity_id: "{{ target_lights }}"
+            entity_id: "{{ target_lights }}"
 
   - action: input_text.set_value
     target:
