@@ -1,144 +1,144 @@
 blueprint:
-    name: Camera Security Popup
-    description: >
-      Creates a fullscreen popup of a camera feed when motion is detected.
-      
-      The popup will appear on specified browser instances, and will close
-      automatically after motion stops (with a configurable delay).
-      
-      Uses the advanced-camera-card for optimal camera viewing experience.
-    domain: automation
-    source_url: https://github.com/home-assistant/blueprints/blob/main/blueprints/automation/camera_popup_on_motion.yaml
-    input:
-      motion_entity:
-        name: Motion Sensor
-        description: Motion sensor that triggers the camera popup
-        selector:
-          entity:
-            domain: binary_sensor
-            device_class: motion
-      camera_entity:
-        name: Camera Entity
-        description: Camera to display when motion is detected
-        selector:
-          entity:
-            domain: camera
-      door_contact:
-        name: Door Contact Sensor (Optional)
-        description: If provided, popups will only show if this door contact is NOT open
-        default: 
-        selector:
-          entity:
-            domain: binary_sensor
-            device_class: door
-            multiple: false
-      do_not_disturb:
-        name: Do Not Disturb Switch
-        description: Popups won't appear when this is on
-        selector:
-          entity:
-            domain: input_boolean
-        default: input_boolean.do_not_disturb
-      browser_ids:
-        name: Browser IDs
-        description: IDs of browser-mod browsers to show popup on
-        selector:
-          object:
-        default: 
-          - your_browser_id_here
-      popup_title:
-        name: Popup Title
-        description: Title to show on the popup
-        selector:
-          text:
-        default: Camera
-      cooldown_seconds:
-        name: Cooldown Seconds
-        description: How long to wait after motion stops before closing popup
-        selector:
-          number:
-            min: 1
-            max: 60
-            unit_of_measurement: seconds
-        default: 15
-      timeout_seconds:
-        name: Timeout Seconds
-        description: Maximum time to show popup before automatically closing
-        selector:
-          number:
-            min: 30
-            max: 600
-            unit_of_measurement: seconds
-        default: 300
-  
-  trigger:
-    - platform: state
-      entity_id: !input motion_entity
-      to: "on"
-      id: motion_start
-    - platform: state
-      entity_id: !input motion_entity
-      to: "off"
-      id: motion_end
-      for:
-        seconds: !input cooldown_seconds
-  
-  condition:
-    - condition: template
-      value_template: >
-        {{ trigger.id == 'motion_start' or trigger.id == 'motion_end' }}
-    - condition: state
-      entity_id: !input do_not_disturb
-      state: "off"
-  
-  action:
-    - choose:
-        - conditions:
-            - condition: trigger
-              id: motion_start
-            - condition: or
-              conditions:
-                - condition: template
-                  value_template: "{{ not (door_contact != None) }}"
-                - condition: state
-                  entity_id: !input door_contact
-                  state: "off"
-          sequence:
-            - action: browser_mod.popup
-              data:
-                dismissable: true
-                browser_id: !input browser_ids
-                title: !input popup_title
-                size: fullscreen
-                auto_focus: true
-                style:
-                  animation: "0.15s"
-                content:
-                  type: custom:advanced-camera-card
-                  cameras:
-                    - camera_entity: !input camera_entity
-                      preload: true
-                  layout:
-                    fit: contain
-                  menu:
-                    style: none
-                  status_bar:
-                    style: none
-                  live:
+  name: Camera Security Popup
+  description: >
+    Creates a fullscreen popup of a camera feed when motion is detected.
+
+    The popup will appear on specified browser instances, and will close
+    automatically after motion stops (with a configurable delay).
+
+    Uses the advanced-camera-card for optimal camera viewing experience.
+  domain: automation
+  source_url: https://github.com/home-assistant/blueprints/blob/main/blueprints/automation/camera_popup_on_motion.yaml
+  input:
+    motion_entity:
+      name: Motion Sensor
+      description: Motion sensor that triggers the camera popup
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: motion
+    camera_entity:
+      name: Camera Entity
+      description: Camera to display when motion is detected
+      selector:
+        entity:
+          domain: camera
+    door_contact:
+      name: Door Contact Sensor (Optional)
+      description: If provided, popups will only show if this door contact is NOT open
+      default:
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: door
+          multiple: false
+    do_not_disturb:
+      name: Do Not Disturb Switch
+      description: Popups won't appear when this is on
+      selector:
+        entity:
+          domain: input_boolean
+      default: input_boolean.do_not_disturb
+    browser_ids:
+      name: Browser IDs
+      description: IDs of browser-mod browsers to show popup on
+      selector:
+        object:
+      default:
+        - your_browser_id_here
+    popup_title:
+      name: Popup Title
+      description: Title to show on the popup
+      selector:
+        text:
+      default: Camera
+    cooldown_seconds:
+      name: Cooldown Seconds
+      description: How long to wait after motion stops before closing popup
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: seconds
+      default: 15
+    timeout_seconds:
+      name: Timeout Seconds
+      description: Maximum time to show popup before automatically closing
+      selector:
+        number:
+          min: 30
+          max: 600
+          unit_of_measurement: seconds
+      default: 300
+
+trigger:
+  - platform: state
+    entity_id: !input motion_entity
+    to: "on"
+    id: motion_start
+  - platform: state
+    entity_id: !input motion_entity
+    to: "off"
+    id: motion_end
+    for:
+      seconds: !input cooldown_seconds
+
+condition:
+  - condition: template
+    value_template: >
+      {{ trigger.id == 'motion_start' or trigger.id == 'motion_end' }}
+  - condition: state
+    entity_id: !input do_not_disturb
+    state: "off"
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: motion_start
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: "{{ not (door_contact != None) }}"
+              - condition: state
+                entity_id: !input door_contact
+                state: "off"
+        sequence:
+          - action: browser_mod.popup
+            data:
+              dismissable: true
+              browser_id: !input browser_ids
+              title: !input popup_title
+              size: fullscreen
+              auto_focus: true
+              style:
+                animation: "0.15s"
+              content:
+                type: custom:advanced-camera-card
+                cameras:
+                  - camera_entity: !input camera_entity
                     preload: true
-                    lazy_load: false
-                    controls:
-                      builtin: true
-                  view:
-                    timeout:
-                      seconds: !input timeout_seconds
-                      action: close
-        - conditions:
-            - condition: trigger
-              id: motion_end
-          sequence:
-            - action: browser_mod.close_popup
-              data:
-                browser_id: !input browser_ids
-  
-  mode: restart
+                layout:
+                  fit: contain
+                menu:
+                  style: none
+                status_bar:
+                  style: none
+                live:
+                  preload: true
+                  lazy_load: false
+                  controls:
+                    builtin: true
+                view:
+                  timeout:
+                    seconds: !input timeout_seconds
+                    action: close
+      - conditions:
+          - condition: trigger
+            id: motion_end
+        sequence:
+          - action: browser_mod.close_popup
+            data:
+              browser_id: !input browser_ids
+
+mode: restart
