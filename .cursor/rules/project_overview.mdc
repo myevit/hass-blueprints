@@ -1,0 +1,10 @@
+---
+description: Repository components and structure overview
+globs: 
+alwaysApply: true
+---
+- This repository is blueprint automations for personal Home Assistant instance
+- There are Android tablets are showing dashboard 24/7
+- User uses the same dashboars on mobile phone
+- Concern pefomance limitations of android devices when making changes
+- Do not use legacy syntax for home assistant yaml
