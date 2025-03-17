@@ -1,0 +1,66 @@
+---
+description: agent must follow this rules
+globs: 
+alwaysApply: false
+---
+
+# STRICT RULE: NO LEGACY YAML SYNTAX IN HOME ASSISTANT BLUEPRINTS
+
+Home Assistant has updated its YAML syntax requirements, particularly for selectors. All blueprints MUST use the current syntax:
+
+## Entity Selectors
+```yaml
+# CORRECT ✅
+selector:
+  entity:
+    filter:
+      domain: light
+      device_class: motion
+
+# WRONG ❌
+selector:
+  entity:
+    domain: light  # Legacy syntax - will cause validation errors
+    device_class: motion
+```
+
+## Device Selectors
+```yaml
+# CORRECT ✅
+selector:
+  device:
+    filter:
+      integration: browser_mod
+    multiple: true
+
+# WRONG ❌ 
+selector:
+  device:
+    integration: browser_mod  # Legacy syntax - will cause validation errors
+    multiple: true
+```
+
+## Area Selectors
+```yaml
+# CORRECT ✅
+selector:
+  area:
+    filter:
+      entity:
+        domain: light
+
+# WRONG ❌
+selector:
+  area:
+    entity:  # Legacy syntax - will cause validation errors
+      domain: light
+```
+
+## Trigger, Condition, Action
+Recent 2024.10 updates also changed these keys:
+- `trigger:` should be `triggers:` (plural)
+- `condition:` should be `conditions:` (plural)
+- `action:` should be `actions:` (plural)
+- `platform:` in triggers should be `trigger:`
+
+This rule MUST be strictly followed to avoid validation errors in Home Assistant. 

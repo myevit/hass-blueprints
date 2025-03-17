@@ -10,6 +10,10 @@ blueprint:
 
     Uses the advanced-camera-card for optimal camera viewing experience.
     Optimized for Android tablets showing dashboards 24/7.
+    
+    Documentation for advanced-camera-card:
+    - GitHub: https://github.com/dermotduffy/advanced-camera-card
+    - Official site: https://card.camera
   domain: automation
   source_url: https://github.com/home-assistant/blueprints/blob/main/blueprints/automation/camera_popup_on_motion.yaml
   input:
@@ -161,7 +165,8 @@ blueprint:
       description: Select browser devices to show popup on
       selector:
         device:
-          integration: browser_mod
+          filter:
+            integration: browser_mod
           multiple: true
       default: []
     optimize_performance:
@@ -191,6 +196,36 @@ blueprint:
           mode: slider
       default: 300
 
+    # Advanced Configuration
+    advanced_camera_card_config:
+      name: Camera Card Configuration
+      description: Advanced configuration for the camera card (optional, leave empty to use defaults)
+      selector:
+        object:
+      default: >
+        # You can use {{camera_entity}} for the camera entity and {{timeout_seconds}} for timeout
+        type: custom:advanced-camera-card
+        cameras:
+          - camera_entity: {{camera_entity}}
+            preload: true
+        profiles:
+          - casting
+        layout:
+          fit: contain
+        menu:
+          style: none
+        status_bar:
+          style: none
+        live:
+          preload: true
+          lazy_load: false
+          controls:
+            builtin: true
+        view:
+          timeout:
+            seconds: {{timeout_seconds}}
+            action: close
+
 variables:
   # Process general settings
   do_not_disturb: !input do_not_disturb
@@ -198,13 +233,16 @@ variables:
   cooldown_seconds: !input cooldown_seconds
   timeout_seconds: !input timeout_seconds
   optimize_performance: !input optimize_performance
+  advanced_camera_card_config: !input advanced_camera_card_config
 
   # Extract browser_mod browser IDs directly
   browser_mod_ids: >
     {% set ids = [] %}
     {% for device in browser_ids %}
-      {% set browser_id = device.split('.')[1] if '.' in device else device %}
-      {% set ids = ids + [browser_id] %}
+      {% if device is string %}
+        {% set browser_id = device.split('.')[1] if '.' in device else device %}
+        {% set ids = ids + [browser_id] %}
+      {% endif %}
     {% endfor %}
     {{ ids }}
 
@@ -262,27 +300,90 @@ variables:
     {% endfor %}
     {{ entities }}
 
-triggers:
-  - trigger: event
-    event_type: state_changed
-    id: motion_trigger
+trigger:
+  - id: motion_1_on
+    trigger: state
+    entity_id: !input motion_1
+    to: 'on'
+  - id: motion_1_off
+    trigger: state
+    entity_id: !input motion_1 
+    to: 'off'
+  - id: motion_2_on
+    trigger: state
+    entity_id: !input motion_2
+    to: 'on'
+    enabled: false
+  - id: motion_2_off
+    trigger: state
+    entity_id: !input motion_2
+    to: 'off'
+    enabled: false
+  - id: motion_3_on
+    trigger: state
+    entity_id: !input motion_3
+    to: 'on'
+    enabled: false
+  - id: motion_3_off
+    trigger: state
+    entity_id: !input motion_3
+    to: 'off'
+    enabled: false
+  - id: motion_4_on
+    trigger: state
+    entity_id: !input motion_4
+    to: 'on'
+    enabled: false
+  - id: motion_4_off
+    trigger: state
+    entity_id: !input motion_4
+    to: 'off'
+    enabled: false
 
-conditions:
+condition:
   # Only proceed when Do Not Disturb is off
   - condition: state
     entity_id: !input do_not_disturb
     state: "off"
-  # Check if the entity that changed is one of our configured motion sensors
-  - condition: template
-    value_template: >
-      {% set entity_id = trigger.event.data.entity_id %}
-      {{ entity_id in motion_entities }}
 
-actions:
-  # Get the details from the event
+action:
+  # Enable the appropriate triggers based on configuration
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ !input.motion_2 != None and !input.motion_2 != '' }}"
+        sequence:
+          - service: system.enable_trigger
+            entity_id:
+              - motion_2_on
+              - motion_2_off
+    default: []
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ !input.motion_3 != None and !input.motion_3 != '' }}"
+        sequence:
+          - service: system.enable_trigger
+            entity_id:
+              - motion_3_on
+              - motion_3_off
+    default: []
+          
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ !input.motion_4 != None and !input.motion_4 != '' }}"
+        sequence:
+          - service: system.enable_trigger
+            entity_id:
+              - motion_4_on
+              - motion_4_off
+    default: []
+
+  # Get the triggered entity
   - variables:
-      triggered_entity: "{{ trigger.event.data.entity_id }}"
-      triggered_to: "{{ trigger.event.data.new_state.state }}"
+      triggered_entity: "{{ trigger.entity_id }}"
 
   # Find camera config matching the triggered motion sensor
   - variables:
@@ -294,12 +395,20 @@ actions:
           {% endif %}
         {% endfor %}
 
-  # Process the motion event based on whether it's on or off
+  # Process the motion event based on which trigger fired
   - choose:
       # Handle motion detected (on)
       - conditions:
-          - condition: template
-            value_template: "{{ triggered_to == 'on' }}"
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: motion_1_on
+              - condition: trigger
+                id: motion_2_on
+              - condition: trigger
+                id: motion_3_on
+              - condition: trigger
+                id: motion_4_on
           - condition: template
             value_template: >
               {% if current_config.door_contact %}
@@ -308,7 +417,7 @@ actions:
                 true
               {% endif %}
         sequence:
-          - action: browser_mod.popup
+          - service: browser_mod.popup
             data:
               dismissable: true
               browser_id: "{{ browser_mod_ids }}"
@@ -317,41 +426,26 @@ actions:
               auto_focus: true
               style:
                 animation: "0.15s"
-              content:
-                type: custom:advanced-camera-card
-                cameras:
-                  - camera_entity: "{{ current_config.camera_entity }}"
-                    preload: true
-                layout:
-                  fit: contain
-                menu:
-                  style: none
-                status_bar:
-                  style: none
-                live:
-                  preload: true
-                  lazy_load: "{{ not optimize_performance }}"
-                  controls:
-                    builtin: true
-                  # Performance optimizations for Android tablets
-                  performance:
-                    profile: "{{ 'high_performance' if optimize_performance else 'quality' }}"
-                    max_streams: "{{ 1 if optimize_performance else 4 }}"
-                    camera_select: immediate
-                view:
-                  timeout:
-                    seconds: !input timeout_seconds
-                    action: close
+              content: >
+                {{ advanced_camera_card_config | replace('{{camera_entity}}', current_config.camera_entity) | replace('{{timeout_seconds}}', timeout_seconds) }}
               deviceID: "popup-{{ triggered_entity }}"
 
       # Handle motion ended (off)
       - conditions:
-          - condition: template
-            value_template: "{{ triggered_to == 'off' }}"
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: motion_1_off
+              - condition: trigger
+                id: motion_2_off
+              - condition: trigger
+                id: motion_3_off
+              - condition: trigger
+                id: motion_4_off
         sequence:
           - delay:
               seconds: !input cooldown_seconds
-          - action: browser_mod.close_popup
+          - service: browser_mod.close_popup
             data:
               browser_id: "{{ browser_mod_ids }}"
               deviceID: "popup-{{ triggered_entity }}"

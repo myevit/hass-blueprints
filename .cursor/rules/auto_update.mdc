@@ -1,7 +1,7 @@
 ---
-description: Auto-update system for Cursor rules based on agent interactions
-globs: ["**/*"]
-alwaysApply: true
+description: agent must follow this rules
+globs: 
+alwaysApply: false
 ---
 
 - When you notice consistent user preferences in interactions, directly update relevant rule files

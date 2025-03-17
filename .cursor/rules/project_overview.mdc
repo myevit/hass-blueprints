@@ -1,10 +1,15 @@
 ---
-description: Repository components and structure overview
+description: agent must follow this rules
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 - This repository is blueprint automations for personal Home Assistant instance
+- Always begin responses with "[<LLM Name/Version>]"
 - There are Android tablets are showing dashboard 24/7
 - User uses the same dashboars on mobile phone
 - Concern pefomance limitations of android devices when making changes
-- Do not use legacy syntax for home assistant yaml
+- STRICT RULE: NEVER use legacy syntax for Home Assistant YAML - always use the newer filter-based syntax:
+  - For entity selectors use: filter: { domain: xyz } instead of domain: xyz
+  - For device selectors use: filter: { integration: xyz } instead of integration: xyz
+  - For area selectors use: filter: { ... } pattern
+  - All selectors with domain, integration, or device_class must use the filter wrapper
