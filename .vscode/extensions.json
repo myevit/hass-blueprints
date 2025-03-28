@@ -3,7 +3,6 @@
     "keesschollaart.vscode-home-assistant",
     "redhat.vscode-yaml",
     "esbenp.prettier-vscode",
-    "netcorext.uuid-generator",
     "oderwat.indent-rainbow"
   ]
 }
