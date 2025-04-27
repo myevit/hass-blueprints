@@ -101,28 +101,32 @@ variables:
       [255, 223, 150], # Very warm white/golden
     ]
   keep_on_duration: !input keep_on_duration
+  # Process and validate manual schedule inputs
   days: "{{ (weekdays | default('')) | lower | regex_replace(' ', '') | regex_replace('[^a-z,]', '') | split(',') }}"
+  has_valid_manual_schedule: "{{ schedule_type == 'manual'
+                                and alarm_time is not none
+                                and days|length > 0 }}"
+  # Process and validate scheduler input
+  has_valid_scheduler: "{{ schedule_type == 'scheduler'
+                          and scheduler_helper is not none }}"
   scheduler_entity: "{{ scheduler_helper if schedule_type == 'scheduler' else none }}"
   alarm_time_input: "{{ alarm_time if schedule_type == 'manual' else none }}"
-  has_valid_days: "{{ days|length > 0 if schedule_type == 'manual' else false }}"
 
 trigger:
-  # Manual schedule trigger - only enabled if we have valid time and days
+  # Manual schedule trigger
   - platform: time
-    at: "{{ alarm_time_input }}"
-    enabled: "{{ schedule_type == 'manual'
-                 and alarm_time_input is not none
-                 and has_valid_days }}"
+    at: !input alarm_time
+    enabled: "{{ has_valid_manual_schedule }}"
     variables:
       current_day: "{{ now().strftime('%a') | lower }}"
     condition:
       - condition: template
         value_template: "{{ current_day in days }}"
 
-  # Scheduler helper trigger - only enabled if we have a valid scheduler entity
+  # Scheduler helper trigger
   - platform: state
-    enabled: "{{ schedule_type == 'scheduler' and scheduler_entity is not none }}"
-    entity_id: "{{ scheduler_entity }}"
+    enabled: "{{ has_valid_scheduler }}"
+    entity_id: !input scheduler_helper
     to: "on"
 
 action:
