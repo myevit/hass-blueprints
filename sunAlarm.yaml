@@ -25,25 +25,25 @@ blueprint:
       name: Alarm Time
       description: The time to trigger the sunrise alarm
       selector:
-        time: {}
-      required: "{{ schedule_type == 'manual' }}"
-      show_if: "{{ schedule_type == 'manual' }}"
+        time:
+          required: "{{ schedule_type == 'manual' }}"
+          show_if: "{{ schedule_type == 'manual' }}"
     weekdays:
       name: Active Days
       description: Days when the alarm should be active (comma-separated, e.g., 'mon,tue,wed')
       default: "mon,tue,wed,thu,fri"
       selector:
-        text: {}
-      required: "{{ schedule_type == 'manual' }}"
-      show_if: "{{ schedule_type == 'manual' }}"
+        text:
+          required: "{{ schedule_type == 'manual' }}"
+          show_if: "{{ schedule_type == 'manual' }}"
     scheduler_helper:
       name: Scheduler Helper
       description: Select a scheduler helper entity
       selector:
         entity:
           domain: schedule
-      required: "{{ schedule_type == 'scheduler' }}"
-      show_if: "{{ schedule_type == 'scheduler' }}"
+          required: "{{ schedule_type == 'scheduler' }}"
+          show_if: "{{ schedule_type == 'scheduler' }}"
     light_entity:
       name: Wake-up light entity
       description: The light to control. Color temperature range is auto-detected.
