@@ -1,11 +1,42 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.5.12"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.5.13"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
+    Supports either manual time/weekday scheduling or scheduler helper.
   domain: automation
   homeassistant:
     min_version: "2023.1.0"
   input:
+    schedule_type:
+      name: Schedule Type
+      description: Choose whether to use manual scheduling or a scheduler helper
+      default: manual
+      selector:
+        select:
+          options:
+            - label: Manual (Time + Weekdays)
+              value: manual
+            - label: Scheduler Helper
+              value: scheduler
+            - label: None (Event Only)
+              value: none
+    alarm_time:
+      name: Alarm Time
+      description: The time to trigger the sunrise alarm
+      selector:
+        time:
+    weekdays:
+      name: Active Days
+      description: Days when the alarm should be active (comma-separated, e.g., 'mon,tue,wed')
+      default: "mon,tue,wed,thu,fri"
+      selector:
+        text:
+    scheduler_helper:
+      name: Scheduler Helper
+      description: Select a scheduler helper entity (only used if Schedule Type is 'scheduler')
+      selector:
+        entity:
+          domain: schedule
     light_entity:
       name: Wake-up light entity
       description: The light to control. Color temperature range is auto-detected.
@@ -62,10 +93,29 @@ variables:
       [255, 223, 150], # Very warm white/golden
     ]
   keep_on_duration: !input keep_on_duration
+  days: "{{ (weekdays | default('')) | lower | regex_replace(' ', '') | regex_replace('[^a-z,]', '') | split(',') }}"
 
 trigger:
-  - trigger: event
+  # Event-based trigger
+  - platform: event
     event_type: sunrise_alarm_start
+    enabled: "{{ schedule_type == 'none' }}"
+
+  # Manual schedule trigger
+  - platform: time
+    at: !input alarm_time
+    enabled: "{{ schedule_type == 'manual' }}"
+    variables:
+      current_day: "{{ now().strftime('%a') | lower }}"
+    condition:
+      - condition: template
+        value_template: "{{ current_day in days }}"
+
+  # Scheduler helper trigger
+  - platform: state
+    entity_id: !input scheduler_helper
+    to: "on"
+    enabled: "{{ schedule_type == 'scheduler' }}"
 
 action:
   # Set initial state
