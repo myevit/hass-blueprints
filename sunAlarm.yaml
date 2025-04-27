@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.5.13"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.6.0"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
     Supports either manual time/weekday scheduling or scheduler helper.
@@ -20,29 +20,37 @@ blueprint:
               value: scheduler
             - label: None (Event Only)
               value: none
+          required: true
     alarm_time:
       name: Alarm Time
       description: The time to trigger the sunrise alarm
       selector:
-        time:
+        time: {}
+      required: "{{ schedule_type == 'manual' }}"
+      show_if: "{{ schedule_type == 'manual' }}"
     weekdays:
       name: Active Days
       description: Days when the alarm should be active (comma-separated, e.g., 'mon,tue,wed')
       default: "mon,tue,wed,thu,fri"
       selector:
-        text:
+        text: {}
+      required: "{{ schedule_type == 'manual' }}"
+      show_if: "{{ schedule_type == 'manual' }}"
     scheduler_helper:
       name: Scheduler Helper
-      description: Select a scheduler helper entity (only used if Schedule Type is 'scheduler')
+      description: Select a scheduler helper entity
       selector:
         entity:
           domain: schedule
+      required: "{{ schedule_type == 'scheduler' }}"
+      show_if: "{{ schedule_type == 'scheduler' }}"
     light_entity:
       name: Wake-up light entity
       description: The light to control. Color temperature range is auto-detected.
       selector:
         entity:
           domain: light
+      required: true
     sunrise_duration:
       name: Sunrise duration
       description: The sunrise will start this many minutes before the timestamp.
@@ -94,28 +102,28 @@ variables:
     ]
   keep_on_duration: !input keep_on_duration
   days: "{{ (weekdays | default('')) | lower | regex_replace(' ', '') | regex_replace('[^a-z,]', '') | split(',') }}"
+  scheduler_entity: "{{ scheduler_helper if schedule_type == 'scheduler' else none }}"
+  alarm_time_input: "{{ alarm_time if schedule_type == 'manual' else none }}"
+  has_valid_days: "{{ days|length > 0 if schedule_type == 'manual' else false }}"
 
 trigger:
-  # Event-based trigger
-  - platform: event
-    event_type: sunrise_alarm_start
-    enabled: "{{ schedule_type == 'none' }}"
-
-  # Manual schedule trigger
+  # Manual schedule trigger - only enabled if we have valid time and days
   - platform: time
-    at: !input alarm_time
-    enabled: "{{ schedule_type == 'manual' }}"
+    at: "{{ alarm_time_input }}"
+    enabled: "{{ schedule_type == 'manual'
+                 and alarm_time_input is not none
+                 and has_valid_days }}"
     variables:
       current_day: "{{ now().strftime('%a') | lower }}"
     condition:
       - condition: template
         value_template: "{{ current_day in days }}"
 
-  # Scheduler helper trigger
+  # Scheduler helper trigger - only enabled if we have a valid scheduler entity
   - platform: state
-    entity_id: !input scheduler_helper
+    enabled: "{{ schedule_type == 'scheduler' and scheduler_entity is not none }}"
+    entity_id: "{{ scheduler_entity }}"
     to: "on"
-    enabled: "{{ schedule_type == 'scheduler' }}"
 
 action:
   # Set initial state
