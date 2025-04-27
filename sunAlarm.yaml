@@ -1,56 +1,24 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.6.1"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.6.2"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
-    Supports either manual time/weekday scheduling or scheduler helper.
+    Uses a scheduler helper to control when the sunrise effect starts.
   domain: automation
   homeassistant:
     min_version: "2023.1.0"
   input:
-    schedule_type:
-      name: Schedule Type
-      description: Choose whether to use manual scheduling or a scheduler helper
-      default: manual
-      selector:
-        select:
-          options:
-            - label: Manual (Time + Weekdays)
-              value: manual
-            - label: Scheduler Helper
-              value: scheduler
-            - label: None (Event Only)
-              value: none
-          required: true
-    alarm_time:
-      name: Alarm Time
-      description: The time to trigger the sunrise alarm
-      selector:
-        time:
-          required: "{{ schedule_type == 'manual' }}"
-          show_if: "{{ schedule_type == 'manual' }}"
-    weekdays:
-      name: Active Days
-      description: Days when the alarm should be active (comma-separated, e.g., 'mon,tue,wed')
-      default: "mon,tue,wed,thu,fri"
-      selector:
-        text:
-          required: "{{ schedule_type == 'manual' }}"
-          show_if: "{{ schedule_type == 'manual' }}"
     scheduler_helper:
       name: Scheduler Helper
-      description: Select a scheduler helper entity
+      description: Select a scheduler helper entity that will control when the sunrise starts
       selector:
         entity:
           domain: schedule
-          required: "{{ schedule_type == 'scheduler' }}"
-          show_if: "{{ schedule_type == 'scheduler' }}"
     light_entity:
       name: Wake-up light entity
       description: The light to control. Color temperature range is auto-detected.
       selector:
         entity:
           domain: light
-      required: true
     sunrise_duration:
       name: Sunrise duration
       description: The sunrise will start this many minutes before the timestamp.
@@ -101,31 +69,9 @@ variables:
       [255, 223, 150], # Very warm white/golden
     ]
   keep_on_duration: !input keep_on_duration
-  # Process and validate manual schedule inputs
-  days: "{{ (weekdays | default('')) | lower | regex_replace(' ', '') | regex_replace('[^a-z,]', '') | split(',') }}"
-  has_valid_manual_schedule: "{{ schedule_type == 'manual'
-                                and alarm_time is not none
-                                and days|length > 0 }}"
-  # Process and validate scheduler input
-  has_valid_scheduler: "{{ schedule_type == 'scheduler'
-                          and scheduler_helper is not none }}"
-  scheduler_entity: "{{ scheduler_helper if schedule_type == 'scheduler' else none }}"
-  alarm_time_input: "{{ alarm_time if schedule_type == 'manual' else none }}"
 
 trigger:
-  # Manual schedule trigger
-  - platform: time
-    at: !input alarm_time
-    enabled: "{{ has_valid_manual_schedule }}"
-    variables:
-      current_day: "{{ now().strftime('%a') | lower }}"
-    condition:
-      - condition: template
-        value_template: "{{ current_day in days }}"
-
-  # Scheduler helper trigger
   - platform: state
-    enabled: "{{ has_valid_scheduler }}"
     entity_id: !input scheduler_helper
     to: "on"
 
