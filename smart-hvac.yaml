@@ -1,7 +1,7 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: >
-    **Version: 1.4.0**
+    **Version: 1.5.0**
 
     Intelligent thermostat control using separate day and night temperature sensors with
     dynamic day/night temperature targets and circadian rhythm simulation.
@@ -124,6 +124,28 @@ blueprint:
         entity:
           domain: weather
 
+    forecast_adjustment:
+      name: Forecast Adjustment
+      description: Temperature adjustment value (°C) to apply when using weather forecast for predictive control
+      default: 0.3
+      selector:
+        number:
+          min: 0.1
+          max: 1.0
+          step: 0.1
+          unit_of_measurement: "°C"
+
+    gradient_threshold:
+      name: Gradient Threshold
+      description: Temperature difference (°C) between indoor and outdoor needed to identify warming/cooling trends
+      default: 2.0
+      selector:
+        number:
+          min: 0.5
+          max: 5.0
+          step: 0.5
+          unit_of_measurement: "°C"
+
     safety_min_setpoint:
       name: Safety Minimum Setpoint
       description: The minimum allowable temperature setpoint for the thermostat (°C). Prevents setting temperatures that are too low.
@@ -153,7 +175,7 @@ description: >-
 triggers:
   # This automation runs every 30 minutes to re-evaluate the thermostat settings.
   - trigger: time_pattern
-    minutes: /30
+    hours: /1
 conditions:
   # --- PRE-EXECUTION CHECKS ---
   # Ensures the automation doesn't run if the thermostat is manually turned off.
@@ -261,16 +283,22 @@ actions:
                   type: hourly
                 response_variable: weather_forecast
               - variables:
+                  # Extract forecast data from the weather response for use in multiple places
+                  forecast_data: >
+                    {% if weather_forecast is defined and weather_entity in weather_forecast and 'forecast' in weather_forecast[weather_entity] and weather_forecast[weather_entity].forecast|length >= 1 %}
+                      {{ weather_forecast[weather_entity].forecast }}
+                    {% else %}
+                      []
+                    {% endif %}
                   # Determines the upcoming natural temperature trend based on the gradient between
                   # desired indoor temperature and current outdoor temperature
                   natural_trend: >
-                    {% if weather_forecast is defined and weather_entity in weather_forecast and 'forecast' in weather_forecast[weather_entity] and weather_forecast[weather_entity].forecast|length >= 1 %}
-                      {% set forecast_data = weather_forecast[weather_entity].forecast %}
+                    {% if forecast_data|length >= 1 %}
                       {% set current_outdoor = forecast_data[0].temperature|float %}
                       {% set temp_gradient = desired_temp - current_outdoor %}
-                      {% if temp_gradient < -2 %}
+                      {% if temp_gradient < -gradient_threshold_value %}
                         warming
-                      {% elif temp_gradient > 2 %}
+                      {% elif temp_gradient > gradient_threshold_value %}
                         cooling
                       {% else %}
                         stable
@@ -282,8 +310,8 @@ actions:
                   # It proactively adjusts the setpoint based on the indoor-outdoor temperature gradient
                   natural_heat_cool_adjustment: >
                     {% if natural_trend != 'unknown' and thermostat_mode in ['heat', 'cool'] %}
-                      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} -0.5
-                      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} 0.5
+                      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} -{{ forecast_adjustment_value }}
+                      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} {{ forecast_adjustment_value }}
                       {% else %} 0
                       {% endif %}
                     {% else %} 0
@@ -291,8 +319,8 @@ actions:
                   # Calculates a temperature adjustment for the heat/cool range mode.
                   # Shifts the entire range up or down based on the natural trend.
                   weather_adjustment_for_range: >
-                    {% if natural_trend == 'warming' %} -0.3
-                    {% elif natural_trend == 'cooling' %} 0.3
+                    {% if natural_trend == 'warming' %} -{{ forecast_adjustment_value }}
+                    {% elif natural_trend == 'cooling' %} {{ forecast_adjustment_value }}
                     {% else %} 0
                     {% endif %}
               # These variables calculate the new low and high setpoints for heat/cool mode.
@@ -326,10 +354,19 @@ actions:
                         data:
                           title: "Smart Thermostat DEBUG (Weather ON)"
                           message: >
-                            Time: {{ current_hour | round(1) }}h | Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                            Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }} | Range: {{ current_target_low }}-{{ current_target_high }}°C
-                            Offset: {{ offset_adjustment }}°C | New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                            Natural Trend: {{ natural_trend }} | Outdoor: {{ forecast_data[0].temperature|float }}°C | Gradient: {{ desired_temp - forecast_data[0].temperature|float }}°C
+                            ### Smart Thermostat Status
+                            Time: {{ current_hour | round(1) }}h
+                            Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+                            Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
+                            Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+
+                            Weather: {{ natural_trend | title }} | Outdoor: {{ forecast_data[0].temperature|float if forecast_data|length >= 1 else 'N/A' }}°C | Gradient: {{ ((desired_temp - forecast_data[0].temperature|float) | round(1)) if forecast_data|length >= 1 else 'N/A' }}°C
+
+                            {% if offset_adjustment != 0 or weather_adjustment_for_range != 0 %}
+                            Action: Adjusting by {{ (offset_adjustment|float + weather_adjustment_for_range|float) | round(1) }}°C → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                            {% else %}
+                            Action: No temperature adjustment needed
+                            {% endif %}
               # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
               # Includes a 10-second delay to allow the thermostat to process the mode change before temperature adjustments.
               - choose:
@@ -407,10 +444,19 @@ actions:
                     data:
                       title: "Smart Thermostat DEBUG (Weather OFF)"
                       message: >
-                        Time: {{ current_hour | round(1) }}h | Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                        Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }} | Range: {{ current_target_low }}-{{ current_target_high }}°C
-                        Offset: {{ offset_adjustment }}°C | New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                        Natural Trend: Disabled | Weather Integration: Off
+                        ### Smart Thermostat Status
+                        Time: {{ current_hour | round(1) }}h
+                        Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+                        Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
+                        Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+
+                        Weather Integration: Off
+
+                        {% if offset_adjustment != 0 %}
+                        Action: Adjusting by {{ offset_adjustment }}°C → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                        {% else %}
+                        Action: No temperature adjustment needed
+                        {% endif %}
           # Switches HVAC mode if necessary, with a delay.
           - choose:
               - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
@@ -465,6 +511,8 @@ variables:
   weather_entity: !input weather_entity
   use_weather_forecast_input: !input use_weather_forecast
   debug_notifications_enabled: !input debug_notifications
+  forecast_adjustment_value: !input forecast_adjustment
+  gradient_threshold_value: !input gradient_threshold
 
   # Safety setpoint limits from blueprint inputs.
   safety_min: !input safety_min_setpoint
