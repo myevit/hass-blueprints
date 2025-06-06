@@ -1,0 +1,437 @@
+blueprint:
+  name: Smart Thermostat with Day/Night Sensors
+  description: >
+    Intelligent thermostat control using separate day and night temperature sensors with
+    dynamic day/night temperature targets and circadian rhythm simulation.
+    Automatically switches between sensors based on configurable time schedule
+    (default: day sensor 6 AM-10 PM, night sensor 10 PM-6 AM) and adjusts HVAC
+    modes and setpoints for optimal comfort throughout the day.
+    Optionally integrates with weather forecast data to predict natural heating/cooling patterns.
+
+  domain: automation
+
+  input:
+    day_target_sensor:
+      name: Day Target Temperature Sensor
+      description: Temperature sensor to use during daytime hours (e.g., living room)
+      selector:
+        entity:
+          domain: sensor
+
+    night_target_sensor:
+      name: Night Target Temperature Sensor
+      description: Temperature sensor to use during nighttime hours (e.g., bedroom)
+      selector:
+        entity:
+          domain: sensor
+
+    thermostat:
+      name: Thermostat
+      description: Climate entity to control
+      selector:
+        entity:
+          domain: climate
+
+    day_temp_input:
+      name: Day Target Temperature
+      description: Input number for daytime target temperature
+      selector:
+        entity:
+          domain: input_number
+
+    night_temp_input:
+      name: Night Target Temperature
+      description: Input number for nighttime target temperature
+      selector:
+        entity:
+          domain: input_number
+
+    day_sensor_start_hour:
+      name: Day Sensor Start Hour
+      description: Hour to switch to day sensor (24-hour format)
+      default: 6
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+          unit_of_measurement: hour
+
+    night_sensor_start_hour:
+      name: Night Sensor Start Hour
+      description: Hour to switch to night sensor (24-hour format)
+      default: 22
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+          unit_of_measurement: hour
+
+    sensor_timeout:
+      name: Sensor Timeout (hours)
+      description: Skip automation if sensor hasn't updated within this many hours
+      default: 1
+      selector:
+        number:
+          min: 0.5
+          max: 6
+          step: 0.5
+          unit_of_measurement: hours
+
+    min_temp_limit:
+      name: Minimum Temperature Limit
+      description: Skip if sensor reads below this temperature (°C)
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 15
+          step: 1
+          unit_of_measurement: °C
+
+    max_temp_limit:
+      name: Maximum Temperature Limit
+      description: Skip if sensor reads above this temperature (°C)
+      default: 35
+      selector:
+        number:
+          min: 25
+          max: 50
+          step: 1
+          unit_of_measurement: °C
+
+    weather_entity:
+      name: Weather Entity
+      description: Optional weather entity to use for forecasting natural heating/cooling (leave blank to disable)
+      selector:
+        entity:
+          domain: weather
+
+alias: Smart Thermostat - Auto Mode Switching
+description: >-
+  Single temperature control with automatic heating/cooling mode switching based
+  on bedroom temperature
+triggers:
+  - minutes: /30
+    trigger: time_pattern
+conditions:
+  - condition: not
+    conditions:
+      - condition: state
+        entity_id: !input thermostat
+        state: "off"
+  - condition: not
+    conditions:
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: !input thermostat
+            attribute: preset_mode
+            state: "away"
+          - condition: state
+            entity_id: !input thermostat
+            attribute: preset_mode
+            state: "vacation"
+
+  # Sensor validation safeguards
+  - condition: template
+    value_template: >
+      {{ states(day_target_sensor_entity) not in ['unknown', 'unavailable', 'none']
+         and states(night_target_sensor_entity) not in ['unknown', 'unavailable', 'none'] }}
+  - condition: template
+    value_template: >
+      {{ states(day_target_sensor_entity) | float(0) >= min_temp_limit_value
+         and states(night_target_sensor_entity) | float(0) >= min_temp_limit_value }}
+  - condition: template
+    value_template: >
+      {{ states(day_target_sensor_entity) | float(50) <= max_temp_limit_value
+         and states(night_target_sensor_entity) | float(50) <= max_temp_limit_value }}
+  - condition: template
+    value_template: >
+      {% set timeout_seconds = sensor_timeout_hours * 3600 %}
+      {{ (now() - states[day_target_sensor_entity].last_updated).total_seconds() < timeout_seconds
+         and (now() - states[night_target_sensor_entity].last_updated).total_seconds() < timeout_seconds }}
+
+actions:
+  # Get weather forecast data first if weather entity is configured
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ weather_entity != none and weather_entity|length > 0 }}"
+          - condition: template
+            value_template: "{{ states(weather_entity) not in ['unavailable', 'unknown', 'none'] }}"
+        sequence:
+          - action: weather.get_forecasts
+            data:
+              type: hourly
+            target:
+              entity_id: "{{ weather_entity }}"
+            response_variable: weather_forecast
+    default: []
+
+  # Debug action to see what's happening
+  - data:
+      title: "Smart Thermostat DEBUG"
+      message: >
+        Time: {{ current_hour | round(1) }}h | Day: {{ day_temp }}°C | Night: {{ night_temp }}°C
+        Schedule: Day {{ day_start_hour }}h-{{ night_start_hour }}h | Night {{ night_start_hour }}h-{{ day_start_hour }}h
+        Dynamic Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+        Using Sensor: {{ current_target_sensor_entity }}
+        Current Mode: {{ thermostat_mode }} | Should be Mode: {{ needed_mode }}
+        Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+        Offset: {{ offset_adjustment }}°C | New Range: {{ new_target_low }}-{{ new_target_high }}°C
+        {% if is_weather_available %}Natural Trend: {{ natural_trend }} | Next 3h Forecast: {{ next_hours_avg_temp }}°C{% else %}Weather forecast not available{% endif %}
+    action: persistent_notification.create
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ needed_mode != thermostat_mode }}"
+          - condition: template
+            value_template: "{{ needed_mode in ['heat', 'cool', 'heat_cool'] }}"
+        sequence:
+          - target:
+              entity_id: !input thermostat
+            data:
+              hvac_mode: "{{ needed_mode }}"
+            action: climate.set_hvac_mode
+          - data:
+              title: "HVAC Mode Changed"
+              message: "Set to {{ needed_mode }} mode"
+            action: persistent_notification.create
+          - delay: "00:00:10"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ states(thermostat_entity) == 'heat_cool' }}"
+          - condition: template
+            value_template: "{{ offset_adjustment != 0 }}"
+          - condition: template
+            value_template: >-
+              {{ new_target_low != current_target_low or new_target_high !=
+              current_target_high }}
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ new_target_low >= 18 and new_target_high <= 28 and
+              new_target_low < new_target_high }}
+          - target:
+              entity_id: !input thermostat
+            data:
+              target_temp_low: "{{ new_target_low }}"
+              target_temp_high: "{{ new_target_high }}"
+            action: climate.set_temperature
+          - data:
+              title: "HVAC Range Set"
+              message: >
+                Set to {{ new_target_low }}-{{ new_target_high }}°C
+                {% if is_weather_available %}(Natural trend: {{ natural_trend }}){% endif %}
+            action: persistent_notification.create
+      - conditions:
+          - condition: template
+            value_template: "{{ states(thermostat_entity) in ['heat', 'cool'] }}"
+          - condition: template
+            value_template: "{{ offset_adjustment != 0 or natural_heat_cool_adjustment != 0 }}"
+        sequence:
+          - condition: template
+            value_template: "{{ new_target_single >= 18 and new_target_single <= 28 }}"
+          - target:
+              entity_id: !input thermostat
+            data:
+              temperature: "{{ new_target_single }}"
+            action: climate.set_temperature
+          - data:
+              title: "HVAC Temperature Set"
+              message: >
+                Set to {{ new_target_single }}°C
+                {% if is_weather_available %}(Natural trend: {{ natural_trend }}){% endif %}
+            action: persistent_notification.create
+variables:
+  # Blueprint inputs as variables
+  day_target_sensor_entity: !input day_target_sensor
+  night_target_sensor_entity: !input night_target_sensor
+  thermostat_entity: !input thermostat
+  day_temp_input_entity: !input day_temp_input
+  night_temp_input_entity: !input night_temp_input
+  day_start_hour: !input day_sensor_start_hour
+  night_start_hour: !input night_sensor_start_hour
+  sensor_timeout_hours: !input sensor_timeout
+  min_temp_limit_value: !input min_temp_limit
+  max_temp_limit_value: !input max_temp_limit
+  weather_entity: !input weather_entity
+
+  # Check if weather entity is available
+  is_weather_available: >
+    {% if weather_entity != none and weather_entity|length > 0 %}
+      {% if states(weather_entity) not in ['unavailable', 'unknown', 'none'] %}
+        {% if weather_forecast is defined %}
+          true
+        {% else %}
+          false
+        {% endif %}
+      {% else %}
+        false
+      {% endif %}
+    {% else %}
+      false
+    {% endif %}
+
+  # Determine which sensor to use based on configurable time schedule
+  current_target_sensor_entity: >
+    {% set hour = now().hour %}
+    {% set day_start = day_start_hour | int %}
+    {% set night_start = night_start_hour | int %}
+    {% if day_start < night_start %}
+      {# Normal case: day_start=6, night_start=22 -> day sensor 6-21, night sensor 22-5 #}
+      {% if hour >= day_start and hour < night_start %}
+        {{ day_target_sensor_entity }}
+      {% else %}
+        {{ night_target_sensor_entity }}
+      {% endif %}
+    {% else %}
+      {# Edge case: night_start < day_start (e.g., day_start=22, night_start=6) #}
+      {% if hour >= night_start and hour < day_start %}
+        {{ night_target_sensor_entity }}
+      {% else %}
+        {{ day_target_sensor_entity }}
+      {% endif %}
+    {% endif %}
+
+  # Calculate values using the variables
+  day_temp: "{{ states(day_temp_input_entity) | float(24) }}"
+  night_temp: "{{ states(night_temp_input_entity) | float(20) }}"
+  current_hour: "{{ now().hour + (now().minute / 60.0) }}"
+
+  # Dynamic desired temperature with smooth circadian rhythm
+  desired_temp: >
+    {% set day_temp = states(day_temp_input_entity) | float(24) %}
+    {% set night_temp = states(night_temp_input_entity) | float(20) %}
+    {% set hour = now().hour + (now().minute / 60.0) %}
+    {% set temp_range = day_temp - night_temp %}
+
+    {# Create smooth curve: coolest at 4 AM, warmest at 4 PM #}
+    {% set phase = (hour - 4) * 15 %}  {# Convert to degrees (24h = 360°) #}
+    {% set curve = (1 + cos(phase | float * 3.14159 / 180)) / 2 %}
+    {% set dynamic_temp = night_temp + (temp_range * curve) %}
+
+    {{ dynamic_temp | round(1) }}
+
+  # Process weather forecast data
+  weather_forecast_data: >
+    {% if is_weather_available and weather_forecast is defined %}
+      {% if weather_entity in weather_forecast %}
+        {{ weather_forecast[weather_entity].forecast }}
+      {% else %}
+        []
+      {% endif %}
+    {% else %}
+      []
+    {% endif %}
+
+  # Extract the next few hours of temperature data
+  next_hours_temps: >
+    {% if weather_forecast_data|length > 0 %}
+      {% set temps = [] %}
+      {% for i in range(0, 3) %}
+        {% if i < weather_forecast_data|length %}
+          {% set temp = weather_forecast_data[i].temperature|float %}
+          {% set temps = temps + [temp] %}
+        {% endif %}
+      {% endfor %}
+      {{ temps }}
+    {% else %}
+      []
+    {% endif %}
+
+  # Calculate average temperature for next 3 hours
+  next_hours_avg_temp: >
+    {% if next_hours_temps|length > 0 %}
+      {{ (next_hours_temps|sum / next_hours_temps|length)|round(1) }}
+    {% else %}
+      {{ states(current_target_sensor_entity)|float }}
+    {% endif %}
+
+  # Determine natural temperature trend (warming, cooling, stable)
+  natural_trend: >
+    {% if weather_forecast_data|length >= 3 %}
+      {% set current_outdoor = weather_forecast_data[0].temperature|float %}
+      {% set future_outdoor = next_hours_avg_temp|float %}
+      {% set diff = future_outdoor - current_outdoor %}
+      {% if diff > 1 %}
+        warming
+      {% elif diff < -1 %}
+        cooling
+      {% else %}
+        stable
+      {% endif %}
+    {% else %}
+      unknown
+    {% endif %}
+
+  # Calculate a natural heating/cooling adjustment based on forecast
+  natural_heat_cool_adjustment: >
+    {% if is_weather_available and natural_trend != 'unknown' %}
+      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %}
+        -0.3
+      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %}
+        0.3
+      {% else %}
+        0
+      {% endif %}
+    {% else %}
+      0
+    {% endif %}
+
+  current_target_temp: "{{ states(current_target_sensor_entity) | float(22) }}"
+  thermostat_mode: "{{ states(thermostat_entity) }}"
+  hvac_action: "{{ state_attr(thermostat_entity, 'hvac_action') }}"
+  temp_difference: "{{ (current_target_temp - desired_temp) | round(1) }}"
+  current_target_low: "{{ state_attr(thermostat_entity, 'target_temp_low') | float(22) }}"
+  current_target_high: "{{ state_attr(thermostat_entity, 'target_temp_high') | float(23) }}"
+  current_target_single: "{{ state_attr(thermostat_entity, 'temperature') | float(22) }}"
+  needed_mode: >
+    {% set diff = temp_difference %}
+    {% if thermostat_mode == 'heat_cool' %}
+      heat_cool
+    {% elif thermostat_mode == 'heat' and diff > 0.5 %}
+      cool
+    {% elif thermostat_mode == 'cool' and diff < -0.5 %}
+      heat
+    {% else %}
+      {{ thermostat_mode }}
+    {% endif %}
+  offset_adjustment: >
+    {% set diff = temp_difference %}
+    {% if diff <= -0.5 %}
+      0.5
+    {% elif diff >= 0.5 %}
+      -0.5
+    {% else %}
+      0
+    {% endif %}
+  new_target_low: >
+    {% if temp_difference < 0 and offset_adjustment > 0 %}
+      {{ (current_target_low + offset_adjustment) | round(1) }}
+    {% else %}
+      {{ current_target_low }}
+    {% endif %}
+  new_target_high: >
+    {% if temp_difference < 0 and offset_adjustment > 0 %}
+      {% set new_low = (current_target_low + offset_adjustment) | round(1) %}
+      {% set required_high = new_low + 1 %}
+      {% if current_target_high < required_high %}
+        {{ required_high }}
+      {% else %}
+        {{ current_target_high }}
+      {% endif %}
+    {% elif temp_difference > 0 and offset_adjustment < 0 %}
+      {{ (current_target_high + offset_adjustment) | round(1) }}
+    {% else %}
+      {{ current_target_high }}
+    {% endif %}
+  new_target_single: >
+    {% set base_adjustment = offset_adjustment|float %}
+    {% set weather_adjustment = natural_heat_cool_adjustment|float %}
+    {% set total_adjustment = base_adjustment + weather_adjustment %}
+    {{ (current_target_single + total_adjustment) | round(1) }}

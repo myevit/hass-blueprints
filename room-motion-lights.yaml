@@ -1,0 +1,217 @@
+blueprint:
+  name: "Room Motion Lights Automation"
+  description: >-
+    Control room lights based on motion detection with time-based scenes and manual override detection.
+  domain: automation
+  input:
+    motion_sensors:
+      name: Motion Sensors
+      description: Motion sensors that will trigger the automation
+      selector:
+        entity:
+          domain: binary_sensor
+          multiple: true
+    transit_delay:
+      name: Transit Delay
+      description: Time in seconds to wait after no motion is detected before executing the timeout sequence
+      default: 120
+      selector:
+        number:
+          min: 10
+          max: 600
+          unit_of_measurement: seconds
+          mode: slider
+          step: 10
+    timeout_wait:
+      name: Timeout Wait
+      description: Time in seconds to wait before turning off lights after transit delay
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 300
+          unit_of_measurement: seconds
+          mode: slider
+          step: 5
+    transit_scene:
+      name: Transit Scene
+      description: Scene to activate when motion is first detected (if needed)
+      selector:
+        entity:
+          domain: scene
+    presence_scene_morning:
+      name: Morning Presence Scene (7-11)
+      description: Scene for time window 7:00-11:00
+      selector:
+        entity:
+          domain: scene
+    presence_scene_day:
+      name: Day Presence Scene (11-15)
+      description: Scene for time window 11:00-15:00
+      selector:
+        entity:
+          domain: scene
+    presence_scene_evening:
+      name: Evening Presence Scene (15-20)
+      description: Scene for time window 15:00-20:00
+      selector:
+        entity:
+          domain: scene
+    presence_scene_night:
+      name: Night Presence Scene (20-7)
+      description: Scene for time window 20:00-7:00
+      selector:
+        entity:
+          domain: scene
+    timeout_scene:
+      name: Timeout Scene
+      description: Scene to activate after transit delay (optional)
+      default: ""
+      selector:
+        entity:
+          domain: scene
+          multiple: false
+
+variables:
+  motion_sensors: !input motion_sensors
+  transit_delay: !input transit_delay
+  timeout_wait: !input timeout_wait
+  transit_scene: !input transit_scene
+  presence_scene_morning: !input presence_scene_morning
+  presence_scene_day: !input presence_scene_day
+  presence_scene_evening: !input presence_scene_evening
+  presence_scene_night: !input presence_scene_night
+  timeout_scene: !input timeout_scene
+
+trigger:
+  - platform: state
+    entity_id: !input motion_sensors
+    to: "on"
+    id: motion_detected
+  - platform: state
+    entity_id: !input motion_sensors
+    to: "off"
+    for:
+      seconds: !input transit_delay
+    id: motion_clear
+
+action:
+  - variables:
+      current_hour: "{{ now().hour }}"
+      current_presence_scene: >-
+        {% if current_hour >= 7 and current_hour < 11 %}
+          {{ presence_scene_morning }}
+        {% elif current_hour >= 11 and current_hour < 15 %}
+          {{ presence_scene_day }}
+        {% elif current_hour >= 15 and current_hour < 20 %}
+          {{ presence_scene_evening }}
+        {% else %}
+          {{ presence_scene_night }}
+        {% endif %}
+      all_scenes_entities: >-
+        {% set all_entities = [] %}
+        {% set scenes = [presence_scene_morning, presence_scene_day, presence_scene_evening, presence_scene_night] %}
+        {% for scene in scenes %}
+          {% set scene_entities = state_attr(scene, 'entity_id') | default([]) %}
+          {% if scene_entities %}
+            {% set all_entities = all_entities + scene_entities %}
+          {% endif %}
+        {% endfor %}
+        {{ all_entities | unique | list }}
+      any_lights_manually_adjusted: >-
+        {% set result = false %}
+        {% for entity_id in all_scenes_entities %}
+          {% if entity_id.startswith('light.') %}
+            {% set entity_obj = states(entity_id) %}
+            {% if entity_obj != 'off' and entity_obj != 'unavailable' %}
+              {% set last_changed = states[entity_id].last_changed %}
+              {% set last_updated = states[entity_id].last_updated %}
+              {% set last_automation = states['automation.room_motion_lights'].last_triggered | default(0) %}
+              {% if (last_changed > last_automation or last_updated > last_automation) and (now() - last_changed).total_seconds() < 1800 %}
+                {% set result = true %}
+              {% endif %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ result }}
+      current_scene_entities: "{{ state_attr(current_presence_scene, 'entity_id') | default([]) }}"
+      any_scene_lights_on: >-
+        {% set result = false %}
+        {% for entity_id in current_scene_entities %}
+          {% if entity_id.startswith('light.') %}
+            {% if states(entity_id) != 'off' and states(entity_id) != 'unavailable' %}
+              {% set result = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ result }}
+
+  - choose:
+      # When motion is detected
+      - conditions:
+          - condition: trigger
+            id: motion_detected
+          - condition: template
+            value_template: "{{ not any_lights_manually_adjusted }}"
+        sequence:
+          - choose:
+              # If scene lights already on, activate the current presence scene
+              - conditions:
+                  - condition: template
+                    value_template: "{{ any_scene_lights_on }}"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ current_presence_scene }}"
+              # If all scene lights are off, activate transit scene first
+              - conditions:
+                  - condition: template
+                    value_template: "{{ not any_scene_lights_on }}"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ transit_scene }}"
+                  - delay:
+                      seconds: 1
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ current_presence_scene }}"
+
+      # When no motion is detected for the transit delay period
+      - conditions:
+          - condition: trigger
+            id: motion_clear
+        sequence:
+          - choose:
+              # If timeout scene is provided
+              - conditions:
+                  - condition: template
+                    value_template: "{{ timeout_scene != '' }}"
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ timeout_scene }}"
+                  - delay:
+                      seconds: "{{ timeout_wait }}"
+              # Otherwise just wait the timeout period
+              - conditions:
+                  - condition: template
+                    value_template: "{{ timeout_scene == '' }}"
+                sequence:
+                  - delay:
+                      seconds: "{{ timeout_wait }}"
+          # Turn off all lights from all scenes
+          - service: light.turn_off
+            target:
+              entity_id: >-
+                {% set light_entities = [] %}
+                {% for entity_id in all_scenes_entities %}
+                  {% if entity_id.startswith('light.') %}
+                    {% set light_entities = light_entities + [entity_id] %}
+                  {% endif %}
+                {% endfor %}
+                {{ light_entities | unique | list }}
+    default: []
+
+mode: restart
+max_exceeded: silent
