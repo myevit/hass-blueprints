@@ -286,7 +286,7 @@ actions:
       - choose:
           - conditions:
               - condition: template
-                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') == 'off' }}"
+                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
             sequence:
               - service: climate.set_fan_mode
                 target:
