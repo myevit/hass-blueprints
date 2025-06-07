@@ -1,7 +1,7 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: >
-    **Version: 1.5.0**
+    **Version: 1.6.3**
 
     Intelligent thermostat control using separate day and night temperature sensors with
     dynamic day/night temperature targets and circadian rhythm simulation.
@@ -9,6 +9,8 @@ blueprint:
     (default: day sensor 6 AM-10 PM, night sensor 10 PM-6 AM) and adjusts HVAC
     modes and setpoints for optimal comfort throughout the day.
     Uses temperature gradient between indoor and outdoor temperatures to predict natural heating/cooling patterns.
+    Ensures fan is never set to 'off' by automatically switching it to 'low'.
+    Simple circadian rhythm control: slider sets coolest AM hour and warmest PM hour.
 
   domain: automation
 
@@ -146,6 +148,17 @@ blueprint:
           step: 0.5
           unit_of_measurement: "°C"
 
+    circadian_hour:
+      name: Circadian Rhythm Time
+      description: Set when temperatures are coolest (AM) and warmest (PM). Value 0=12AM/12PM, 1=1AM/1PM, etc.
+      default: 4
+      selector:
+        number:
+          min: 0
+          max: 11
+          step: 1
+          mode: slider
+
     safety_min_setpoint:
       name: Safety Minimum Setpoint
       description: The minimum allowable temperature setpoint for the thermostat (°C). Prevents setting temperatures that are too low.
@@ -269,6 +282,17 @@ actions:
 
     # If sensors are OK, proceed with the main temperature control logic.
     default:
+      # Ensures thermostat fan is not left in 'off' state.
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') == 'off' }}"
+            sequence:
+              - service: climate.set_fan_mode
+                target:
+                  entity_id: !input thermostat
+                data:
+                  fan_mode: "low"
       - choose:
           # This condition checks the 'is_weather_available' variable defined below.
           - conditions: "{{ is_weather_available }}"
@@ -329,14 +353,14 @@ actions:
               - variables:
                   new_target_low: >
                     {% set base_low = current_target_low %}
-                    {% if temp_difference < 0 and offset_adjustment > 0 %}
+                    {% if temp_difference > 0 %}
                       {% set base_low = current_target_low + offset_adjustment %}
                     {% endif %}
                     {{- ((base_low + weather_adjustment_for_range) * 2) | round / 2 -}}
               - variables:
                   new_target_high: >
                     {% set base_high = current_target_high %}
-                    {% if temp_difference > 0 and offset_adjustment < 0 %}
+                    {% if temp_difference > 0 %}
                       {% set base_high = current_target_high + offset_adjustment %}
                     {% endif %}
                     {% set preliminary_high = (base_high + weather_adjustment_for_range) %}
@@ -364,6 +388,7 @@ actions:
 
                             {% if offset_adjustment != 0 or weather_adjustment_for_range != 0 %}
                             Action: Adjusting by {{ (offset_adjustment|float + weather_adjustment_for_range|float) | round(1) }}°C → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                            {% if new_target_low == current_target_low and new_target_high == current_target_high %}(No Change){% endif %}
                             {% else %}
                             Action: No temperature adjustment needed
                             {% endif %}
@@ -420,14 +445,14 @@ actions:
           - variables:
               new_target_low: >
                 {% set base_low = current_target_low %}
-                {% if temp_difference < 0 and offset_adjustment > 0 %}
+                {% if temp_difference > 0 %}
                   {% set base_low = current_target_low + offset_adjustment %}
                 {% endif %}
                 {{- (base_low * 2) | round / 2 -}}
           - variables:
               new_target_high: >
                 {% set base_high = current_target_high %}
-                {% if temp_difference > 0 and offset_adjustment < 0 %}
+                {% if temp_difference > 0 %}
                   {% set base_high = current_target_high + offset_adjustment %}
                 {% endif %}
                 {% set final_low = new_target_low | float %}
@@ -513,6 +538,7 @@ variables:
   debug_notifications_enabled: !input debug_notifications
   forecast_adjustment_value: !input forecast_adjustment
   gradient_threshold_value: !input gradient_threshold
+  circadian_hour_value: !input circadian_hour
 
   # Safety setpoint limits from blueprint inputs.
   safety_min: !input safety_min_setpoint
@@ -551,16 +577,20 @@ variables:
   current_hour: "{{ now().hour + (now().minute / 60.0) }}"
 
   # Calculates the "desired" temperature at any given moment using a cosine curve.
-  # This simulates a natural circadian rhythm, making it cooler at night (peak cool at 4 AM)
-  # and warmer during the day (peak warm at 4 PM).
+  # This simulates a natural circadian rhythm with the coolest temperature at the selected AM hour
+  # and warmest at the same PM hour (12 hours later).
   desired_temp: >
     {% set day_temp = states(day_temp_input_entity) | float(24) %}
     {% set night_temp = states(night_temp_input_entity) | float(20) %}
     {% set hour = now().hour + (now().minute / 60.0) %}
     {% set temp_range = day_temp - night_temp %}
+    {% set coolest_hour = circadian_hour_value | int %}
+    {% if coolest_hour == 0 %}
+      {% set coolest_hour = 0 %}
+    {% endif %}
 
-    {# Create smooth curve: coolest at 4 AM, warmest at 4 PM #}
-    {% set phase = (hour - 4) * 15 %}  {# Convert to degrees (24h = 360°) #}
+    {# Create smooth curve: coolest at the selected AM hour, warmest 12 hours later #}
+    {% set phase = (hour - coolest_hour) * 15 %}  {# Convert to degrees (24h = 360°) #}
     {% set curve = (1 - cos(phase | float * 3.14159 / 180)) / 2 %} {# Inverted curve #}
     {% set dynamic_temp = night_temp + (temp_range * curve) %}
 
