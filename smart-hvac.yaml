@@ -1,7 +1,7 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: >
-    **Version: 1.6.3**
+    **Version: 1.7.0**
 
     Intelligent thermostat control using separate day and night temperature sensors with
     dynamic day/night temperature targets and circadian rhythm simulation.
@@ -9,6 +9,7 @@ blueprint:
     (default: day sensor 6 AM-10 PM, night sensor 10 PM-6 AM) and adjusts HVAC
     modes and setpoints for optimal comfort throughout the day.
     Uses temperature gradient between indoor and outdoor temperatures to predict natural heating/cooling patterns.
+    Advanced solar and weather condition analysis for predictive thermal management.
     Ensures fan is never set to 'off' by automatically switching it to 'low'.
     Simple circadian rhythm control: slider sets coolest AM hour and warmest PM hour.
 
@@ -20,35 +21,40 @@ blueprint:
       description: Temperature sensor to use during daytime hours (e.g., living room)
       selector:
         entity:
-          domain: sensor
+          filter:
+            domain: sensor
 
     night_target_sensor:
       name: Night Target Temperature Sensor
       description: Temperature sensor to use during nighttime hours (e.g., bedroom)
       selector:
         entity:
-          domain: sensor
+          filter:
+            domain: sensor
 
     thermostat:
       name: Thermostat
       description: Climate entity to control
       selector:
         entity:
-          domain: climate
+          filter:
+            domain: climate
 
     day_temp_input:
       name: Day Target Temperature
       description: Input number for daytime target temperature
       selector:
         entity:
-          domain: input_number
+          filter:
+            domain: input_number
 
     night_temp_input:
       name: Night Target Temperature
       description: Input number for nighttime target temperature
       selector:
         entity:
-          domain: input_number
+          filter:
+            domain: input_number
 
     day_sensor_start_hour:
       name: Day Sensor Start Hour
@@ -124,7 +130,37 @@ blueprint:
       description: Optional weather entity to use for forecasting natural heating/cooling (leave blank to disable)
       selector:
         entity:
-          domain: weather
+          filter:
+            domain: weather
+
+    outdoor_temp_sensor:
+      name: Outdoor Temperature Sensor
+      description: Optional real-time outdoor temperature sensor (more accurate than weather forecast)
+      selector:
+        entity:
+          filter:
+            domain: sensor
+      default: ""
+
+    humidity_sensor:
+      name: Indoor Humidity Sensor
+      description: Optional humidity sensor for "feels like" temperature calculations
+      selector:
+        entity:
+          filter:
+            domain: sensor
+      default: ""
+
+    solar_adjustment:
+      name: Solar Impact Factor
+      description: Adjustment factor for direct sunlight impact (higher = stronger impact)
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 1.0
+          step: 0.1
+          unit_of_measurement: factor
 
     forecast_adjustment:
       name: Forecast Adjustment
@@ -282,7 +318,9 @@ actions:
 
     # If sensors are OK, proceed with the main temperature control logic.
     default:
-      # Ensures thermostat fan is not left in 'off' state.
+      # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation
+      # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
+      # If fan is set to medium or high, we don't change it (assuming user manual override)
       - choose:
           - conditions:
               - condition: template
@@ -314,39 +352,151 @@ actions:
                     {% else %}
                       []
                     {% endif %}
-                  # Determines the upcoming natural temperature trend based on the gradient between
-                  # desired indoor temperature and current outdoor temperature
-                  natural_trend: >
+
+                  # Determine the current outdoor temperature, preferring the real sensor if available
+                  current_outdoor_temp: >
+                    {% if outdoor_temp_entity != "" and states(outdoor_temp_entity) not in ['unknown', 'unavailable', 'none'] %}
+                      {{ states(outdoor_temp_entity) | float }}
+                    {% elif forecast_data|length >= 1 %}
+                      {{ forecast_data[0].temperature|float }}
+                    {% else %}
+                      {{ states(weather_entity).attributes.temperature|default(20)|float }}
+                    {% endif %}
+
+                  # Get the current weather condition from the forecast
+                  current_condition: >
                     {% if forecast_data|length >= 1 %}
-                      {% set current_outdoor = forecast_data[0].temperature|float %}
-                      {% set temp_gradient = desired_temp - current_outdoor %}
-                      {% if temp_gradient < -gradient_threshold_value %}
-                        warming
-                      {% elif temp_gradient > gradient_threshold_value %}
-                        cooling
+                      {{ forecast_data[0].condition }}
+                    {% else %}
+                      {{ states(weather_entity).attributes.condition|default('unknown') }}
+                    {% endif %}
+
+                  # Calculate solar impact based on weather condition and time of day
+                  solar_impact: >
+                    {% set hour = now().hour %}
+                    {% set is_daytime = hour >= 6 and hour <= 18 %}
+                    {% set sunny_conditions = ['sunny', 'partlycloudy'] %}
+                    {% set partial_conditions = ['partlycloudy', 'cloudy'] %}
+
+                    {% if is_daytime and current_condition in sunny_conditions %}
+                      {% if current_condition == 'sunny' %}
+                        {{ solar_adjustment_value }}
+                      {% elif current_condition == 'partlycloudy' %}
+                        {{ solar_adjustment_value * 0.5 }}
+                      {% else %}
+                        0
+                      {% endif %}
+                    {% else %}
+                      0
+                    {% endif %}
+
+                  # Calculate "feels like" temperature if humidity sensor is available
+                  feels_like_temp: >
+                    {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
+                      {% set humidity = states(humidity_entity) | float %}
+                      {% set actual_temp = current_target_temp %}
+                      {% if actual_temp > 20 and humidity > 40 %}
+                        {% set humidity_factor = (humidity - 40) / 100 %}
+                        {% set feels_like_adjustment = humidity_factor * (actual_temp - 20) * 0.3 %}
+                        {{ actual_temp + feels_like_adjustment }}
+                      {% else %}
+                        {{ actual_temp }}
+                      {% endif %}
+                    {% else %}
+                      {{ current_target_temp }}
+                    {% endif %}
+
+                  # Determine the thermal contribution of the building envelope
+                  # This considers wall thermal mass effects based on outdoor temperature trends
+                  building_thermal_contribution: >
+                    {% if forecast_data|length >= 3 %}
+                      {% set now_temp = current_outdoor_temp %}
+                      {% set prev_temp = forecast_data[1].temperature|float %}
+                      {% set trend_strength = (now_temp - prev_temp)|abs %}
+
+                      {% if trend_strength > 1 %}
+                        {% if now_temp > prev_temp %}
+                          warming
+                        {% else %}
+                          cooling
+                        {% endif %}
                       {% else %}
                         stable
                       {% endif %}
                     {% else %}
-                      unknown
+                      stable
                     {% endif %}
+
+                  # Comprehensive natural thermal trend that considers:
+                  # 1. Indoor/outdoor gradient
+                  # 2. Solar impact
+                  # 3. Building thermal mass
+                  # 4. Feels like temperature
+                  natural_trend: >
+                    {% set temp_gradient = desired_temp - current_outdoor_temp %}
+                    {% set gradient_trend = 'unknown' %}
+
+                    {% if temp_gradient < -gradient_threshold_value %}
+                      {% set gradient_trend = 'warming' %}
+                    {% elif temp_gradient > gradient_threshold_value %}
+                      {% set gradient_trend = 'cooling' %}
+                    {% else %}
+                      {% set gradient_trend = 'stable' %}
+                    {% endif %}
+
+                    {% if solar_impact|float > 0 %}
+                      {% if gradient_trend == 'cooling' %}
+                        {% if solar_impact|float > 0.3 %}
+                          stable
+                        {% else %}
+                          cooling
+                        {% endif %}
+                      {% else %}
+                        warming
+                      {% endif %}
+                    {% elif building_thermal_contribution == 'warming' and gradient_trend != 'cooling' %}
+                      warming
+                    {% elif building_thermal_contribution == 'cooling' and gradient_trend != 'warming' %}
+                      cooling
+                    {% else %}
+                      {{ gradient_trend }}
+                    {% endif %}
+
+                  # A more nuanced adjustment calculation that considers all factors
+                  weather_adjustment_factor: >
+                    {% set base_factor = forecast_adjustment_value %}
+                    {% set solar_factor = solar_impact|float %}
+                    {% set feels_adjustment = 0 %}
+
+                    {% if feels_like_temp|float > current_target_temp|float + 0.5 %}
+                      {% set feels_adjustment = 0.2 %}
+                    {% elif feels_like_temp|float < current_target_temp|float - 0.5 %}
+                      {% set feels_adjustment = -0.2 %}
+                    {% endif %}
+
+                    {% if natural_trend == 'warming' %}
+                      {{ (base_factor + solar_factor + feels_adjustment) * -1 }}
+                    {% elif natural_trend == 'cooling' %}
+                      {{ base_factor - feels_adjustment }}
+                    {% else %}
+                      {{ feels_adjustment }}
+                    {% endif %}
+
                   # Calculates a small temperature adjustment for single-setpoint modes (heat/cool).
                   # It proactively adjusts the setpoint based on the indoor-outdoor temperature gradient
                   natural_heat_cool_adjustment: >
                     {% if natural_trend != 'unknown' and thermostat_mode in ['heat', 'cool'] %}
-                      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} -{{ forecast_adjustment_value }}
-                      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} {{ forecast_adjustment_value }}
+                      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} {{ weather_adjustment_factor }}
+                      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} {{ weather_adjustment_factor|abs }}
                       {% else %} 0
                       {% endif %}
                     {% else %} 0
                     {% endif %}
+
                   # Calculates a temperature adjustment for the heat/cool range mode.
                   # Shifts the entire range up or down based on the natural trend.
-                  weather_adjustment_for_range: >
-                    {% if natural_trend == 'warming' %} -{{ forecast_adjustment_value }}
-                    {% elif natural_trend == 'cooling' %} {{ forecast_adjustment_value }}
-                    {% else %} 0
-                    {% endif %}
+                  weather_adjustment_for_range: "{{ weather_adjustment_factor }}"
+
               # These variables calculate the new low and high setpoints for heat/cool mode.
               # They incorporate the standard offset adjustment and the new weather-based adjustment.
               # The result is rounded to the nearest 0.5° to match thermostat hardware constraints.
@@ -378,7 +528,10 @@ actions:
                             Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
                             Current Range: {{ current_target_low }}-{{ current_target_high }}°C
 
-                            Weather: {{ natural_trend | title }} | Outdoor: {{ forecast_data[0].temperature|float if forecast_data|length >= 1 else 'N/A' }}°C | Gradient: {{ ((desired_temp - forecast_data[0].temperature|float) | round(1)) if forecast_data|length >= 1 else 'N/A' }}°C
+                            Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
+                            Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
+                            Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
+                            Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
 
                             {% if offset_adjustment != 0 or weather_adjustment_for_range != 0 %}
                             Action: Adjusting by {{ (offset_adjustment|float + weather_adjustment_for_range|float) | round(1) }}°C → New Range: {{ new_target_low }}-{{ new_target_high }}°C
@@ -522,9 +675,12 @@ variables:
   min_temp_limit_value: !input min_temp_limit
   max_temp_limit_value: !input max_temp_limit
   weather_entity: !input weather_entity
+  outdoor_temp_entity: !input outdoor_temp_sensor
+  humidity_entity: !input humidity_sensor
   use_weather_forecast_input: !input use_weather_forecast
   debug_notifications_enabled: !input debug_notifications
   forecast_adjustment_value: !input forecast_adjustment
+  solar_adjustment_value: !input solar_adjustment
   gradient_threshold_value: !input gradient_threshold
   circadian_hour_value: !input circadian_hour
 
