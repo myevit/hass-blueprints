@@ -1,12 +1,11 @@
 ---
 description: agent must follow this rules
-globs: 
+globs:
 alwaysApply: false
 ---
-
 # STRICT RULE: NO LEGACY YAML SYNTAX IN HOME ASSISTANT BLUEPRINTS
 
-Home Assistant has updated its YAML syntax requirements, particularly for selectors. All blueprints MUST use the current syntax:
+Home Assistant has updated its YAML syntax requirements. All blueprints MUST use the current syntax:
 
 ## Entity Selectors
 ```yaml
@@ -33,7 +32,7 @@ selector:
       integration: browser_mod
     multiple: true
 
-# WRONG ❌ 
+# WRONG ❌
 selector:
   device:
     integration: browser_mod  # Legacy syntax - will cause validation errors
@@ -63,4 +62,27 @@ Recent 2024.10 updates also changed these keys:
 - `action:` should be `actions:` (plural)
 - `platform:` in triggers should be `trigger:`
 
-This rule MUST be strictly followed to avoid validation errors in Home Assistant. 
+## Template Variables in Triggers
+Template variables cannot be used directly in trigger configurations:
+
+```yaml
+# CORRECT ✅
+trigger:
+  - platform: time_pattern
+    hours: "/6"
+
+# WRONG ❌
+trigger:
+  - platform: time_pattern
+    hours: "/{{ check_interval }}"  # Cannot use template variables in triggers
+```
+
+If you need configurable trigger values:
+1. Define fixed options in the blueprint input with a selector
+2. Use choose/when/else patterns in actions to react differently based on inputs
+3. For time patterns, use fixed values that meet most use cases
+
+## Action Service Names
+- `service:` is now `action:`
+
+These rules MUST be strictly followed to avoid validation errors in Home Assistant.
