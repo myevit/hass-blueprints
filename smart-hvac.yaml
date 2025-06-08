@@ -246,6 +246,9 @@ conditions:
             entity_id: !input thermostat
             attribute: preset_mode
             state: "vacation"
+  # Only runs automation if thermostat is in a temperature control mode (heat, cool, or heat_cool)
+  - condition: template
+    value_template: "{{ states(thermostat_entity) in ['heat', 'cool', 'heat_cool'] }}"
 
   # Verifies that both day and night sensors are providing valid readings.
   - condition: template
