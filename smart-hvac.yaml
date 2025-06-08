@@ -318,19 +318,6 @@ actions:
 
     # If sensors are OK, proceed with the main temperature control logic.
     default:
-      # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation
-      # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
-      # If fan is set to medium or high, we don't change it (assuming user manual override)
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
-            sequence:
-              - service: climate.set_fan_mode
-                target:
-                  entity_id: !input thermostat
-                data:
-                  fan_mode: "low"
       - choose:
           # This condition checks the 'is_weather_available' variable defined below.
           - conditions: "{{ is_weather_available }}"
@@ -767,6 +754,22 @@ actions:
                       entity_id: !input thermostat
                     data:
                       temperature: "{{ new_target_single }}"
+
+          # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
+          # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
+          # If fan is set to medium or high, we don't change it (assuming user manual override)
+          # Added 1-minute delay to avoid API melt
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
+                sequence:
+                  - delay: "00:01:00"
+                  - service: climate.set_fan_mode
+                    target:
+                      entity_id: !input thermostat
+                    data:
+                      fan_mode: "low"
 variables:
   # --- VARIABLE DEFINITIONS ---
   # This section defines all the variables used throughout the automation for clarity and reusability.
