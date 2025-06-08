@@ -315,11 +315,10 @@ actions:
                     data:
                       title: "Smart Thermostat ALERT"
                       message: "Faulty sensor data detected. Automation paused and thermostat set to 'resume' mode."
-
-    # If sensors are OK, proceed with the main temperature control logic.
     default:
+      # Main processing path for when sensors are OK
       - choose:
-          # This condition checks the 'is_weather_available' variable defined below.
+          # This condition checks if weather integration is available
           - conditions: "{{ is_weather_available }}"
             sequence:
               # --- WEATHER ENABLED PATH ---
@@ -521,7 +520,7 @@ actions:
                   # Shifts the entire range up or down based on the natural trend.
                   weather_adjustment_for_range: "{{ weather_adjustment_factor }}"
 
-                            # Calculate new target setpoints with directional adjustments
+              # Calculate new target setpoints with directional adjustments
               - variables:
                   # Calculate the new heating setpoint
                   calculated_low: >-
@@ -572,7 +571,6 @@ actions:
                   new_target_high: "{{ final_high }}"
 
               # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
-              # Includes a 10-second delay to allow the thermostat to process the mode change before temperature adjustments.
               - choose:
                   - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
                     sequence:
@@ -581,7 +579,6 @@ actions:
                           entity_id: !input thermostat
                         data:
                           hvac_mode: "{{ needed_mode }}"
-                      - delay: "00:00:10"
               # Adjusts the temperature setpoints based on the current HVAC mode.
               - choose:
                   # For 'heat_cool' mode, it sets the new low and high targets.
@@ -620,7 +617,7 @@ actions:
           # --- WEATHER DISABLED PATH ---
           # This block executes if the weather integration is disabled or no entity is provided.
           # The logic is a simplified version of the weather-enabled path, without weather adjustments.
-                    # Calculate new target setpoints with directional adjustments
+          # Calculate new target setpoints with directional adjustments
           - variables:
               # Calculate the new heating setpoint
               calculated_low: >-
@@ -666,7 +663,7 @@ actions:
               # Make new_target_high a simple variable assignment
               new_target_high: "{{ final_high }}"
 
-          # Switches HVAC mode if necessary, with a delay.
+          # Switches HVAC mode if necessary
           - choose:
               - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
                 sequence:
@@ -675,7 +672,6 @@ actions:
                       entity_id: !input thermostat
                     data:
                       hvac_mode: "{{ needed_mode }}"
-                  - delay: "00:00:10"
           # Adjusts temperature setpoints for the current mode, without weather adjustments.
           - choose:
               - conditions:
@@ -704,53 +700,53 @@ actions:
                     data:
                       temperature: "{{ new_target_single }}"
 
-          # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
-          # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
-          # If fan is set to medium or high, we don't change it (assuming user manual override)
-          # Added 1-minute delay to avoid API melt
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
-                sequence:
-                  - delay: "00:01:00"
-                  - service: climate.set_fan_mode
-                    target:
-                      entity_id: !input thermostat
-                    data:
-                      fan_mode: "low"
+      # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
+      # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
+      # If fan is set to medium or high, we don't change it (assuming user manual override)
+      # Added 1-minute delay to avoid API melt
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
+            sequence:
+              - delay: "00:01:00"
+              - service: climate.set_fan_mode
+                target:
+                  entity_id: !input thermostat
+                data:
+                  fan_mode: "low"
 
-          # Debug message is now the last action in the automation
-          - choose:
-              - conditions: "{{ debug_notifications_enabled }}"
-                sequence:
-                  - service: persistent_notification.create
-                    data:
-                      title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
-                      message: >
-                        Time: {{ current_hour | round(1) }}h
-                        Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                        Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
-                        Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+      # Debug message is now the last action in the automation
+      - choose:
+          - conditions: "{{ debug_notifications_enabled }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
+                  message: >
+                    Time: {{ current_hour | round(1) }}h
+                    Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+                    Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
+                    Current Range: {{ current_target_low }}-{{ current_target_high }}°C
 
-                        {% if is_weather_available %}
-                        Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
-                        Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
-                        Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
-                        {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
-                        {% else %}
-                        Weather Integration: Off
-                        {% endif %}
+                    {% if is_weather_available %}
+                    Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
+                    Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
+                    Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
+                    {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
+                    {% else %}
+                    Weather Integration: Off
+                    {% endif %}
 
-                        {% set low_change = new_target_low|float - current_target_low|float %}
-                        {% set high_change = new_target_high|float - current_target_high|float %}
-                        {% if low_change != 0 or high_change != 0 %}
-                        Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                        {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
-                        {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
-                        {% else %}
-                        Action: No temperature adjustment needed
-                        {% endif %}
+                    {% set low_change = new_target_low|float - current_target_low|float %}
+                    {% set high_change = new_target_high|float - current_target_high|float %}
+                    {% if low_change != 0 or high_change != 0 %}
+                    Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                    {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
+                    {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
+                    {% else %}
+                    Action: No temperature adjustment needed
+                    {% endif %}
 
 variables:
   # --- VARIABLE DEFINITIONS ---
