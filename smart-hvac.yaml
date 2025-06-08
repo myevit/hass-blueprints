@@ -570,34 +570,7 @@ actions:
               - variables:
                   # Make new_target_high a simple variable assignment
                   new_target_high: "{{ final_high }}"
-              # Creates a persistent notification with detailed debug information for troubleshooting.
-              - choose:
-                  - conditions: "{{ debug_notifications_enabled }}"
-                    sequence:
-                      - service: persistent_notification.create
-                        data:
-                          title: "Smart Thermostat DEBUG (Weather ON)"
-                          message: >
-                            ### Smart Thermostat Status
-                            Time: {{ current_hour | round(1) }}h
-                            Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                            Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
-                            Current Range: {{ current_target_low }}-{{ current_target_high }}°C
 
-                            Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
-                            Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
-                            Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
-                            {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
-
-                            {% set low_change = new_target_low|float - current_target_low|float %}
-                            {% set high_change = new_target_high|float - current_target_high|float %}
-                            {% if low_change != 0 or high_change != 0 %}
-                            Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                            {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
-                            {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
-                            {% else %}
-                            Action: No temperature adjustment needed
-                            {% endif %}
               # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
               # Includes a 10-second delay to allow the thermostat to process the mode change before temperature adjustments.
               - choose:
@@ -692,31 +665,7 @@ actions:
           - variables:
               # Make new_target_high a simple variable assignment
               new_target_high: "{{ final_high }}"
-          # Creates a persistent notification for debugging, indicating weather is disabled.
-          - choose:
-              - conditions: "{{ debug_notifications_enabled }}"
-                sequence:
-                  - service: persistent_notification.create
-                    data:
-                      title: "Smart Thermostat DEBUG (Weather OFF)"
-                      message: >
-                        ### Smart Thermostat Status
-                        Time: {{ current_hour | round(1) }}h
-                        Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                        Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
-                        Current Range: {{ current_target_low }}-{{ current_target_high }}°C
 
-                        Weather Integration: Off
-
-                        {% set low_change = new_target_low|float - current_target_low|float %}
-                        {% set high_change = new_target_high|float - current_target_high|float %}
-                        {% if low_change != 0 or high_change != 0 %}
-                        Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                        {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
-                        {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
-                        {% else %}
-                        Action: No temperature adjustment needed
-                        {% endif %}
           # Switches HVAC mode if necessary, with a delay.
           - choose:
               - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
@@ -770,6 +719,39 @@ actions:
                       entity_id: !input thermostat
                     data:
                       fan_mode: "low"
+
+          # Debug message is now the last action in the automation
+          - choose:
+              - conditions: "{{ debug_notifications_enabled }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
+                      message: >
+                        Time: {{ current_hour | round(1) }}h
+                        Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+                        Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
+                        Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+
+                        {% if is_weather_available %}
+                        Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
+                        Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
+                        Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
+                        {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
+                        {% else %}
+                        Weather Integration: Off
+                        {% endif %}
+
+                        {% set low_change = new_target_low|float - current_target_low|float %}
+                        {% set high_change = new_target_high|float - current_target_high|float %}
+                        {% if low_change != 0 or high_change != 0 %}
+                        Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                        {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
+                        {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
+                        {% else %}
+                        Action: No temperature adjustment needed
+                        {% endif %}
+
 variables:
   # --- VARIABLE DEFINITIONS ---
   # This section defines all the variables used throughout the automation for clarity and reusability.
