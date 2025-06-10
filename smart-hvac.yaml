@@ -250,383 +250,285 @@ conditions:
   - condition: template
     value_template: "{{ states(thermostat_entity) in ['heat', 'cool', 'heat_cool'] }}"
 
-  # Verifies that both day and night sensors are providing valid readings.
+  # Combined sensor validation in a single condition
   - condition: template
     value_template: >
-      {{ states(day_target_sensor_entity) not in ['unknown', 'unavailable', 'none']
-         and states(night_target_sensor_entity) not in ['unknown', 'unavailable', 'none'] }}
-  # Safety check: ensures sensor readings are within a reasonable temperature range.
-  - condition: template
-    value_template: >
-      {{ states(day_target_sensor_entity) | float(0) >= min_temp_limit_value
-         and states(night_target_sensor_entity) | float(0) >= min_temp_limit_value }}
-  # Another safety check for temperature limits.
-  - condition: template
-    value_template: >
-      {{ states(day_target_sensor_entity) | float(50) <= max_temp_limit_value
-         and states(night_target_sensor_entity) | float(50) <= max_temp_limit_value }}
-  # Ensures that sensor data is recent, preventing adjustments based on stale information.
-  - condition: template
-    value_template: >
+      {% set day_s = day_target_sensor_entity %}
+      {% set night_s = night_target_sensor_entity %}
+      {% set day_state = states[day_s] %}
+      {% set night_state = states[night_s] %}
       {% set timeout_seconds = sensor_timeout_hours * 3600 %}
-      {{ (now() - states[day_target_sensor_entity].last_updated).total_seconds() < timeout_seconds
-         and (now() - states[night_target_sensor_entity].last_updated).total_seconds() < timeout_seconds }}
+
+      {% if day_state is none or day_state.state in ['unknown', 'unavailable', 'none'] or
+         night_state is none or night_state.state in ['unknown', 'unavailable', 'none'] %}
+        {{ false }}
+      {% else %}
+        {% set day_temp = day_state.state | float(-99) %}
+        {% set night_temp = night_state.state | float(-99) %}
+
+        {% set temp_valid = day_temp >= min_temp_limit_value and
+                           night_temp >= min_temp_limit_value and
+                           day_temp <= max_temp_limit_value and
+                           night_temp <= max_temp_limit_value %}
+
+        {% set data_fresh = (now() - day_state.last_updated).total_seconds() < timeout_seconds and
+                           (now() - night_state.last_updated).total_seconds() < timeout_seconds %}
+
+        {{ temp_valid and data_fresh }}
+      {% endif %}
 
 actions:
   - choose:
-      # This block checks if any sensor is faulty. If so, it sets the thermostat
-      # to a safe 'resume' mode and stops processing.
-      - conditions:
-          - condition: template
-            value_template: >
-              {% set timeout_seconds = sensor_timeout_hours * 3600 %}
-              {% set day_s = day_target_sensor_entity %}
-              {% set night_s = night_target_sensor_entity %}
-
-              {% set day_state = states[day_s] %}
-              {% set night_state = states[night_s] %}
-
-              {% if day_state is none or day_state.state in ['unknown', 'unavailable', 'none']
-                 or night_state is none or night_state.state in ['unknown', 'unavailable', 'none'] %}
-                {{ true }}
-              {% else %}
-                {# Use a default of -99 to ensure it fails the range check if conversion is not possible #}
-                {% set day_temp = day_state.state | float(-99) %}
-                {% set night_temp = night_state.state | float(-99) %}
-
-                {% set temp_fault = day_temp < min_temp_limit_value or
-                                    night_temp < min_temp_limit_value or
-                                    day_temp > max_temp_limit_value or
-                                    night_temp > max_temp_limit_value %}
-
-                {% set stale_fault = (now() - day_state.last_updated).total_seconds() >= timeout_seconds or
-                                     (now() - night_state.last_updated).total_seconds() >= timeout_seconds %}
-
-                {{ temp_fault or stale_fault }}
-              {% endif %}
+      # Weather-enabled path
+      - conditions: "{{ is_weather_available }}"
         sequence:
-          # If sensors are faulty, set thermostat to 'resume' and send a notification if enabled.
-          - service: climate.set_preset_mode
+          # --- WEATHER ENABLED PATH ---
+          # This block executes when weather integration is active.
+          # Fetches the hourly weather forecast. The response is stored in 'weather_forecast'.
+          - service: weather.get_forecasts
             target:
-              entity_id: !input thermostat
+              entity_id: "{{ weather_entity }}"
             data:
-              preset_mode: "resume"
-          - choose:
-              - conditions: "{{ debug_notifications_enabled }}"
-                sequence:
-                  - service: persistent_notification.create
-                    data:
-                      title: "Smart Thermostat ALERT"
-                      message: "Faulty sensor data detected. Automation paused and thermostat set to 'resume' mode."
-    default:
-      # Main processing path for when sensors are OK
-      - choose:
-          # This condition checks if weather integration is available
-          - conditions: "{{ is_weather_available }}"
-            sequence:
-              # --- WEATHER ENABLED PATH ---
-              # This block executes when weather integration is active.
-              # Fetches the hourly weather forecast. The response is stored in 'weather_forecast'.
-              - service: weather.get_forecasts
-                target:
-                  entity_id: "{{ weather_entity }}"
-                data:
-                  type: hourly
-                response_variable: weather_forecast
-              - variables:
-                  # Extract forecast data from the weather response for use in multiple places
-                  forecast_data: >
-                    {% if weather_forecast is defined and weather_entity in weather_forecast and 'forecast' in weather_forecast[weather_entity] and weather_forecast[weather_entity].forecast|length >= 1 %}
-                      {{ weather_forecast[weather_entity].forecast }}
+              type: hourly
+            response_variable: weather_forecast
+          - variables:
+              # Extract forecast data from the weather response for use in multiple places
+              forecast_data: >
+                {% if weather_forecast is defined and weather_entity in weather_forecast and 'forecast' in weather_forecast[weather_entity] and weather_forecast[weather_entity].forecast|length >= 1 %}
+                  {{ weather_forecast[weather_entity].forecast }}
+                {% else %}
+                  []
+                {% endif %}
+
+              # Determine the current outdoor temperature, preferring the real sensor if available
+              current_outdoor_temp: >
+                {% if outdoor_temp_entity != "" and states(outdoor_temp_entity) not in ['unknown', 'unavailable', 'none'] %}
+                  {{ states(outdoor_temp_entity) | float }}
+                {% elif forecast_data|length >= 1 %}
+                  {{ forecast_data[0].temperature|float }}
+                {% else %}
+                  {{ states(weather_entity).attributes.temperature|default(20)|float }}
+                {% endif %}
+
+              # Get the current weather condition from the forecast
+              current_condition: >
+                {% if forecast_data|length >= 1 %}
+                  {{ forecast_data[0].condition }}
+                {% else %}
+                  {{ states(weather_entity).attributes.condition|default('unknown') }}
+                {% endif %}
+
+              # Calculate solar impact based on weather condition and time of day
+              solar_impact: >
+                {% set hour = now().hour %}
+                {% set is_daytime = hour >= 6 and hour <= 18 %}
+                {% set sunny_conditions = ['sunny', 'partlycloudy'] %}
+                {% set partial_conditions = ['partlycloudy', 'cloudy'] %}
+
+                {% if is_daytime and current_condition in sunny_conditions %}
+                  {% if current_condition == 'sunny' %}
+                    {{ solar_adjustment_value }}
+                  {% elif current_condition == 'partlycloudy' %}
+                    {{ solar_adjustment_value * 0.5 }}
+                  {% else %}
+                    0
+                  {% endif %}
+                {% else %}
+                  0
+                {% endif %}
+
+              # Calculate "feels like" temperature if humidity sensor is available
+              feels_like_temp: >
+                {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
+                  {% set humidity = states(humidity_entity) | float %}
+                  {% set actual_temp = current_target_temp %}
+
+                  {% if actual_temp >= 20 %}
+                    {# Heat index calculation - high temp + high humidity feels warmer #}
+                    {% if humidity > 40 %}
+                      {% set humidity_factor = (humidity - 40) / 100 %}
+                      {# Increased coefficient from 0.5 to 0.8 for more pronounced effect #}
+                      {% set feels_like_adjustment = humidity_factor * (actual_temp - 19) * 0.8 %}
+                      {{ actual_temp + feels_like_adjustment }}
+                    {% elif humidity < 30 %}
+                      {# Dry air can feel slightly cooler than actual temperature #}
+                      {% set dry_factor = (30 - humidity) / 100 %}
+                      {% set feels_like_adjustment = dry_factor * 0.5 %}
+                      {{ actual_temp - feels_like_adjustment }}
                     {% else %}
-                      []
+                      {{ actual_temp }}
                     {% endif %}
-
-                  # Determine the current outdoor temperature, preferring the real sensor if available
-                  current_outdoor_temp: >
-                    {% if outdoor_temp_entity != "" and states(outdoor_temp_entity) not in ['unknown', 'unavailable', 'none'] %}
-                      {{ states(outdoor_temp_entity) | float }}
-                    {% elif forecast_data|length >= 1 %}
-                      {{ forecast_data[0].temperature|float }}
+                  {% elif actual_temp <= 18 %}
+                    {# Wind chill approximation - high humidity makes cold feel colder #}
+                    {% if humidity > 60 %}
+                      {% set humidity_factor = (humidity - 60) / 100 %}
+                      {% set feels_like_adjustment = humidity_factor * 0.8 %}
+                      {{ actual_temp - feels_like_adjustment }}
                     {% else %}
-                      {{ states(weather_entity).attributes.temperature|default(20)|float }}
+                      {{ actual_temp }}
                     {% endif %}
+                  {% else %}
+                    {{ actual_temp }}
+                  {% endif %}
+                {% else %}
+                  {{ current_target_temp }}
+                {% endif %}
 
-                  # Get the current weather condition from the forecast
-                  current_condition: >
-                    {% if forecast_data|length >= 1 %}
-                      {{ forecast_data[0].condition }}
-                    {% else %}
-                      {{ states(weather_entity).attributes.condition|default('unknown') }}
-                    {% endif %}
+              # Get the current humidity for use in calculations and debug output
+              current_humidity: >
+                {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
+                  {{ states(humidity_entity) | float }}
+                {% else %}
+                  unknown
+                {% endif %}
 
-                  # Calculate solar impact based on weather condition and time of day
-                  solar_impact: >
-                    {% set hour = now().hour %}
-                    {% set is_daytime = hour >= 6 and hour <= 18 %}
-                    {% set sunny_conditions = ['sunny', 'partlycloudy'] %}
-                    {% set partial_conditions = ['partlycloudy', 'cloudy'] %}
+              # Determine the thermal contribution of the building envelope
+              # This considers wall thermal mass effects based on outdoor temperature trends
+              building_thermal_contribution: >
+                {% if forecast_data|length >= 3 %}
+                  {% set now_temp = current_outdoor_temp %}
+                  {% set prev_temp = forecast_data[1].temperature|float %}
+                  {% set trend_strength = (now_temp - prev_temp)|abs %}
 
-                    {% if is_daytime and current_condition in sunny_conditions %}
-                      {% if current_condition == 'sunny' %}
-                        {{ solar_adjustment_value }}
-                      {% elif current_condition == 'partlycloudy' %}
-                        {{ solar_adjustment_value * 0.5 }}
-                      {% else %}
-                        0
-                      {% endif %}
-                    {% else %}
-                      0
-                    {% endif %}
-
-                  # Calculate "feels like" temperature if humidity sensor is available
-                  feels_like_temp: >
-                    {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
-                      {% set humidity = states(humidity_entity) | float %}
-                      {% set actual_temp = current_target_temp %}
-
-                      {% if actual_temp >= 20 %}
-                        {# Heat index calculation - high temp + high humidity feels warmer #}
-                        {% if humidity > 40 %}
-                          {% set humidity_factor = (humidity - 40) / 100 %}
-                          {# Increased coefficient from 0.5 to 0.8 for more pronounced effect #}
-                          {% set feels_like_adjustment = humidity_factor * (actual_temp - 19) * 0.8 %}
-                          {{ actual_temp + feels_like_adjustment }}
-                        {% elif humidity < 30 %}
-                          {# Dry air can feel slightly cooler than actual temperature #}
-                          {% set dry_factor = (30 - humidity) / 100 %}
-                          {% set feels_like_adjustment = dry_factor * 0.5 %}
-                          {{ actual_temp - feels_like_adjustment }}
-                        {% else %}
-                          {{ actual_temp }}
-                        {% endif %}
-                      {% elif actual_temp <= 18 %}
-                        {# Wind chill approximation - high humidity makes cold feel colder #}
-                        {% if humidity > 60 %}
-                          {% set humidity_factor = (humidity - 60) / 100 %}
-                          {% set feels_like_adjustment = humidity_factor * 0.8 %}
-                          {{ actual_temp - feels_like_adjustment }}
-                        {% else %}
-                          {{ actual_temp }}
-                        {% endif %}
-                      {% else %}
-                        {{ actual_temp }}
-                      {% endif %}
-                    {% else %}
-                      {{ current_target_temp }}
-                    {% endif %}
-
-                  # Get the current humidity for use in calculations and debug output
-                  current_humidity: >
-                    {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
-                      {{ states(humidity_entity) | float }}
-                    {% else %}
-                      unknown
-                    {% endif %}
-
-                  # Determine the thermal contribution of the building envelope
-                  # This considers wall thermal mass effects based on outdoor temperature trends
-                  building_thermal_contribution: >
-                    {% if forecast_data|length >= 3 %}
-                      {% set now_temp = current_outdoor_temp %}
-                      {% set prev_temp = forecast_data[1].temperature|float %}
-                      {% set trend_strength = (now_temp - prev_temp)|abs %}
-
-                      {% if trend_strength > 1 %}
-                        {% if now_temp > prev_temp %}
-                          warming
-                        {% else %}
-                          cooling
-                        {% endif %}
-                      {% else %}
-                        stable
-                      {% endif %}
-                    {% else %}
-                      stable
-                    {% endif %}
-
-                  # Comprehensive natural thermal trend that considers:
-                  # 1. Indoor/outdoor gradient
-                  # 2. Solar impact
-                  # 3. Building thermal mass
-                  # 4. Feels like temperature
-                  natural_trend: >
-                    {% set temp_gradient = desired_temp - current_outdoor_temp %}
-                    {% set gradient_trend = 'unknown' %}
-
-                    {% if temp_gradient < -gradient_threshold_value %}
-                      {% set gradient_trend = 'warming' %}
-                    {% elif temp_gradient > gradient_threshold_value %}
-                      {% set gradient_trend = 'cooling' %}
-                    {% else %}
-                      {% set gradient_trend = 'stable' %}
-                    {% endif %}
-
-                    {% if solar_impact|float > 0 %}
-                      {% if gradient_trend == 'cooling' %}
-                        {% if solar_impact|float > 0.3 %}
-                          stable
-                        {% else %}
-                          cooling
-                        {% endif %}
-                      {% else %}
-                        warming
-                      {% endif %}
-                    {% elif building_thermal_contribution == 'warming' and gradient_trend != 'cooling' %}
+                  {% if trend_strength > 1 %}
+                    {% if now_temp > prev_temp %}
                       warming
-                    {% elif building_thermal_contribution == 'cooling' and gradient_trend != 'warming' %}
+                    {% else %}
                       cooling
-                    {% else %}
-                      {{ gradient_trend }}
                     {% endif %}
+                  {% else %}
+                    stable
+                  {% endif %}
+                {% else %}
+                  stable
+                {% endif %}
 
-                  # A more nuanced adjustment calculation that considers all factors
-                  weather_adjustment_factor: >
-                    {% set base_factor = forecast_adjustment_value %}
-                    {% set solar_factor = solar_impact|float %}
-                    {% set feels_adjustment = 0 %}
+              # Comprehensive natural thermal trend that considers:
+              # 1. Indoor/outdoor gradient
+              # 2. Solar impact
+              # 3. Building thermal mass
+              # 4. Feels like temperature
+              # 5. Forecast trend (if available)
+              natural_trend: >
+                {% set temp_gradient = desired_temp - current_outdoor_temp %}
+                {% set gradient_trend = 'unknown' %}
+                {% set actual_indoor_outdoor_diff = current_target_temp - current_outdoor_temp %}
 
-                    {% if feels_like_temp|float > current_target_temp|float + 0.5 %}
-                      {% set feels_adjustment = 0.2 %}
-                    {% elif feels_like_temp|float < current_target_temp|float - 0.5 %}
-                      {% set feels_adjustment = -0.2 %}
-                    {% endif %}
+                {# Determine gradient trend based on indoor-outdoor difference #}
+                {% if temp_gradient < -gradient_threshold_value %}
+                  {% set gradient_trend = 'warming' %}
+                {% elif temp_gradient > gradient_threshold_value %}
+                  {% set gradient_trend = 'cooling' %}
+                {% else %}
+                  {% set gradient_trend = 'stable' %}
+                {% endif %}
 
-                    {% if natural_trend == 'warming' %}
-                      {# More conservative adjustment for warming trends to prevent over-cooling #}
-                      {% set temp_diff = current_outdoor_temp|float - desired_temp|float %}
-                      {% if temp_diff > 0 %}
-                        {# Only make significant adjustments if outdoor temp is higher than desired #}
-                        {{ (base_factor + solar_factor + feels_adjustment) * -0.7 }}
-                      {% else %}
-                        {# Minimal adjustment when outdoor is still cooler than indoor #}
-                        {{ (base_factor + solar_factor + feels_adjustment) * -0.3 }}
-                      {% endif %}
-                    {% elif natural_trend == 'cooling' %}
-                      {{ base_factor - feels_adjustment }}
-                    {% else %}
-                      {{ feels_adjustment }}
-                    {% endif %}
+                {# Check forecast trends if available #}
+                {% set forecast_trend = 'unknown' %}
+                {% if forecast_data|length >= 3 %}
+                  {% set current_temp = current_outdoor_temp %}
+                  {% set future_temp = forecast_data[2].temperature|float %}
+                  {% set trend_diff = future_temp - current_temp %}
 
-                  # Calculates a small temperature adjustment for single-setpoint modes (heat/cool).
-                  # It proactively adjusts the setpoint based on the indoor-outdoor temperature gradient
-                  natural_heat_cool_adjustment: >
-                    {% if natural_trend != 'unknown' and thermostat_mode in ['heat', 'cool'] %}
-                      {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} {{ weather_adjustment_factor }}
-                      {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} {{ weather_adjustment_factor|abs }}
-                      {% else %} 0
-                      {% endif %}
-                    {% else %} 0
-                    {% endif %}
+                  {% if trend_diff > 1 %}
+                    {% set forecast_trend = 'warming' %}
+                  {% elif trend_diff < -1 %}
+                    {% set forecast_trend = 'cooling' %}
+                  {% else %}
+                    {% set forecast_trend = 'stable' %}
+                  {% endif %}
+                {% endif %}
 
-                  # Calculates a temperature adjustment for the heat/cool range mode.
-                  # Shifts the entire range up or down based on the natural trend.
-                  weather_adjustment_for_range: "{{ weather_adjustment_factor }}"
+                {# Make final determination #}
+                {% if actual_indoor_outdoor_diff < -2 and temp_gradient < 0 %}
+                  {# If indoor is already >2°C cooler than outdoor, and desired is less than outdoor,
+                     the space will likely warm up regardless of other factors #}
+                  warming
+                {% elif actual_indoor_outdoor_diff > 2 and temp_gradient > 0 %}
+                  {# If indoor is already >2°C warmer than outdoor, and desired is greater than outdoor,
+                     the space will likely cool down regardless of other factors #}
+                  cooling
+                {% elif solar_impact|float > 0.3 and forecast_trend != 'cooling' %}
+                  {# Strong solar impact will cause warming unless forecast shows cooling #}
+                  warming
+                {% elif forecast_trend != 'unknown' %}
+                  {# Trust forecast trend if available #}
+                  {{ forecast_trend }}
+                {% elif building_thermal_contribution == 'warming' and gradient_trend != 'cooling' %}
+                  warming
+                {% elif building_thermal_contribution == 'cooling' and gradient_trend != 'warming' %}
+                  cooling
+                {% else %}
+                  {{ gradient_trend }}
+                {% endif %}
 
-              # Calculate new target setpoints with directional adjustments
-              - variables:
-                  # Calculate the new heating setpoint
-                  calculated_low: >-
-                    {% if temp_difference < -0.5 or (natural_trend == 'cooling' and offset_adjustment != 0) %}
-                      {% if offset_adjustment > 0 %}
-                        {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
-                      {% else %}
-                        {{ current_target_low }}
-                      {% endif %}
-                    {% elif natural_trend == 'warming' and weather_adjustment_for_range|float < 0 %}
-                      {{ ((current_target_low + weather_adjustment_for_range) * 2) | round / 2 }}
-                    {% else %}
-                      {{ current_target_low }}
-                    {% endif %}
+              # A more nuanced adjustment calculation that considers all factors
+              weather_adjustment_factor: >
+                {% set base_factor = forecast_adjustment_value %}
+                {% set solar_factor = solar_impact|float %}
+                {% set feels_adjustment = 0 %}
 
-              - variables:
-                  # Make new_target_low a simple variable assignment
-                  new_target_low: "{{ calculated_low }}"
+                {% if feels_like_temp|float > current_target_temp|float + 0.5 %}
+                  {% set feels_adjustment = 0.2 %}
+                {% elif feels_like_temp|float < current_target_temp|float - 0.5 %}
+                  {% set feels_adjustment = -0.2 %}
+                {% endif %}
 
-              - variables:
-                  # Calculate the new cooling setpoint
-                  calculated_high: >-
-                    {% if temp_difference > 0.5 or (natural_trend == 'warming' and offset_adjustment != 0) %}
-                      {% if offset_adjustment < 0 %}
-                        {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
-                      {% else %}
-                        {{ current_target_high }}
-                      {% endif %}
-                    {% elif natural_trend == 'cooling' and weather_adjustment_for_range|float > 0 %}
-                      {{ ((current_target_high + weather_adjustment_for_range) * 2) | round / 2 }}
-                    {% else %}
-                      {{ current_target_high }}
-                    {% endif %}
+                {% if natural_trend == 'warming' %}
+                  {# More conservative adjustment for warming trends to prevent over-cooling #}
+                  {% set temp_diff = current_outdoor_temp|float - desired_temp|float %}
+                  {% if temp_diff > 0 and temp_difference > 0 %}
+                    {# Only make significant cooling adjustments if both outdoor temp is higher than desired
+                       AND current indoor temp is above desired temp #}
+                    {{ (base_factor + solar_factor + feels_adjustment) * -0.7 }}
+                  {% elif temp_difference < 0 %}
+                    {# If indoor temp is already below desired, don't make negative adjustments #}
+                    {{ feels_adjustment }}
+                  {% else %}
+                    {# Minimal adjustment in other warming scenarios #}
+                    {{ (base_factor + solar_factor + feels_adjustment) * -0.3 }}
+                  {% endif %}
+                {% elif natural_trend == 'cooling' %}
+                  {% if temp_difference < 0 %}
+                    {# If room is already cooler than desired in cooling trend, apply positive adjustment #}
+                    {{ (base_factor + feels_adjustment) | abs }}
+                  {% else %}
+                    {{ base_factor - feels_adjustment }}
+                  {% endif %}
+                {% else %}
+                  {{ feels_adjustment }}
+                {% endif %}
 
-              - variables:
-                  # Ensure minimum 1°C difference between setpoints
-                  final_high: >-
-                    {% set low = new_target_low|float %}
-                    {% set high = calculated_high|float %}
-                    {% if high < (low + 1) %}
-                      {{ ((low + 1) * 2) | round / 2 }}
-                    {% else %}
-                      {{ high }}
-                    {% endif %}
+              # Calculates a small temperature adjustment for single-setpoint modes (heat/cool).
+              # It proactively adjusts the setpoint based on the indoor-outdoor temperature gradient
+              natural_heat_cool_adjustment: >
+                {% if natural_trend != 'unknown' and thermostat_mode in ['heat', 'cool'] %}
+                  {% if natural_trend == 'warming' and thermostat_mode == 'cool' %} {{ weather_adjustment_factor }}
+                  {% elif natural_trend == 'cooling' and thermostat_mode == 'heat' %} {{ weather_adjustment_factor|abs }}
+                  {% else %} 0
+                  {% endif %}
+                {% else %} 0
+                {% endif %}
 
-              - variables:
-                  # Make new_target_high a simple variable assignment
-                  new_target_high: "{{ final_high }}"
+              # Calculates a temperature adjustment for the heat/cool range mode.
+              # Shifts the entire range up or down based on the natural trend.
+              weather_adjustment_for_range: "{{ weather_adjustment_factor }}"
 
-              # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
-              - choose:
-                  - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
-                    sequence:
-                      - service: climate.set_hvac_mode
-                        target:
-                          entity_id: !input thermostat
-                        data:
-                          hvac_mode: "{{ needed_mode }}"
-              # Adjusts the temperature setpoints based on the current HVAC mode.
-              - choose:
-                  # For 'heat_cool' mode, it sets the new low and high targets.
-                  - conditions:
-                      - "{{ thermostat_mode == 'heat_cool' }}"
-                      - "{{ offset_adjustment != 0 or weather_adjustment_for_range != 0 }}"
-                      - "{{ new_target_low != current_target_low or new_target_high != current_target_high }}"
-                    sequence:
-                      # Safety condition to ensure new setpoints are within a reasonable range.
-                      - condition: template
-                        value_template: "{{ new_target_low >= safety_min and new_target_high <= safety_max and new_target_low < new_target_high }}"
-                      - service: climate.set_temperature
-                        target:
-                          entity_id: !input thermostat
-                        data:
-                          target_temp_low: "{{ new_target_low }}"
-                          target_temp_high: "{{ new_target_high }}"
-                  # For 'heat' or 'cool' modes, it calculates and sets a new single target temperature.
-                  - conditions:
-                      - "{{ thermostat_mode in ['heat', 'cool'] }}"
-                      - "{{ offset_adjustment != 0 or natural_heat_cool_adjustment != 0 }}"
-                    sequence:
-                      # Calculates the new single setpoint, including offset and weather adjustments,
-                      # and rounds it to the nearest 0.5°.
-                      - variables:
-                          new_target_single: "{{ ((current_target_single + offset_adjustment + natural_heat_cool_adjustment) * 2) | round / 2 }}"
-                      # Safety condition to ensure the new setpoint is within a reasonable range.
-                      - condition: template
-                        value_template: "{{ new_target_single >= safety_min and new_target_single <= safety_max }}"
-                      - service: climate.set_temperature
-                        target:
-                          entity_id: !input thermostat
-                        data:
-                          temperature: "{{ new_target_single }}"
-        default:
-          # --- WEATHER DISABLED PATH ---
-          # This block executes if the weather integration is disabled or no entity is provided.
-          # The logic is a simplified version of the weather-enabled path, without weather adjustments.
           # Calculate new target setpoints with directional adjustments
           - variables:
               # Calculate the new heating setpoint
               calculated_low: >-
                 {% if temp_difference < -0.5 %}
+                  {# Room is colder than desired, potentially raise heating setpoint #}
                   {% if offset_adjustment > 0 %}
                     {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
+                  {% else %}
+                    {{ current_target_low }}
+                  {% endif %}
+                {% elif temp_difference > 0.5 and natural_trend == 'warming' %}
+                  {# Room is warmer than desired AND warming trend, potentially lower heating setpoint #}
+                  {% if weather_adjustment_for_range|float < 0 %}
+                    {{ ((current_target_low + weather_adjustment_for_range) * 2) | round / 2 }}
                   {% else %}
                     {{ current_target_low }}
                   {% endif %}
@@ -635,15 +537,19 @@ actions:
                 {% endif %}
 
           - variables:
-              # Make new_target_low a simple variable assignment
-              new_target_low: "{{ calculated_low }}"
-
-          - variables:
               # Calculate the new cooling setpoint
               calculated_high: >-
                 {% if temp_difference > 0.5 %}
+                  {# Room is warmer than desired, potentially lower cooling setpoint #}
                   {% if offset_adjustment < 0 %}
                     {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
+                  {% else %}
+                    {{ current_target_high }}
+                  {% endif %}
+                {% elif temp_difference < -0.5 and natural_trend == 'cooling' %}
+                  {# Room is colder than desired AND cooling trend, potentially raise cooling setpoint #}
+                  {% if weather_adjustment_for_range|float > 0 %}
+                    {{ ((current_target_high + weather_adjustment_for_range) * 2) | round / 2 }}
                   {% else %}
                     {{ current_target_high }}
                   {% endif %}
@@ -652,21 +558,40 @@ actions:
                 {% endif %}
 
           - variables:
-              # Ensure minimum 1°C difference between setpoints
-              final_high: >-
-                {% set low = new_target_low|float %}
+              # Ensure minimum 1°C difference between setpoints by adjusting whichever setpoint changed less
+              final_calculation: >-
+                {% set low = calculated_low|float %}
                 {% set high = calculated_high|float %}
-                {% if high < (low + 1) %}
-                  {{ ((low + 1) * 2) | round / 2 }}
+                {% set low_change = (low - current_target_low|float)|abs %}
+                {% set high_change = (high - current_target_high|float)|abs %}
+
+                {% if (high - low) < 1 %}
+                  {% if low_change <= high_change %}
+                    {# The low setpoint changed less, so adjust it downward #}
+                    low:{{ high - 1 }};high:{{ high }}
+                  {% else %}
+                    {# The high setpoint changed less, so adjust it upward #}
+                    {% set new_high = ((low + 1) * 2) | round / 2 %}
+                    low:{{ low }};high:{{ new_high }}
+                  {% endif %}
                 {% else %}
-                  {{ high }}
+                  low:{{ low }};high:{{ high }}
                 {% endif %}
 
           - variables:
-              # Make new_target_high a simple variable assignment
-              new_target_high: "{{ final_high }}"
+              # Extract adjusted values using string parsing
+              adjusted_low: >-
+                {% set parts = final_calculation.split(';') %}
+                {% set low_part = parts[0].split(':') %}
+                {{ low_part[1]|float }}
+              adjusted_high: >-
+                {% set parts = final_calculation.split(';') %}
+                {% set high_part = parts[1].split(':') %}
+                {{ high_part[1]|float }}
+              new_target_low: "{{ adjusted_low }}"
+              new_target_high: "{{ adjusted_high }}"
 
-          # Switches HVAC mode if necessary
+          # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
           - choose:
               - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
                 sequence:
@@ -675,12 +600,15 @@ actions:
                       entity_id: !input thermostat
                     data:
                       hvac_mode: "{{ needed_mode }}"
-          # Adjusts temperature setpoints for the current mode, without weather adjustments.
+          # Adjusts the temperature setpoints based on the current HVAC mode.
           - choose:
+              # For 'heat_cool' mode, it sets the new low and high targets.
               - conditions:
                   - "{{ thermostat_mode == 'heat_cool' }}"
+                  - "{{ offset_adjustment != 0 or weather_adjustment_for_range != 0 }}"
                   - "{{ new_target_low != current_target_low or new_target_high != current_target_high }}"
                 sequence:
+                  # Safety condition to ensure new setpoints are within a reasonable range.
                   - condition: template
                     value_template: "{{ new_target_low >= safety_min and new_target_high <= safety_max and new_target_low < new_target_high }}"
                   - service: climate.set_temperature
@@ -689,12 +617,16 @@ actions:
                     data:
                       target_temp_low: "{{ new_target_low }}"
                       target_temp_high: "{{ new_target_high }}"
+              # For 'heat' or 'cool' modes, it calculates and sets a new single target temperature.
               - conditions:
                   - "{{ thermostat_mode in ['heat', 'cool'] }}"
-                  - "{{ offset_adjustment != 0 }}"
+                  - "{{ offset_adjustment != 0 or natural_heat_cool_adjustment != 0 }}"
                 sequence:
+                  # Calculates the new single setpoint, including offset and weather adjustments,
+                  # and rounds it to the nearest 0.5°.
                   - variables:
-                      new_target_single: "{{ ((current_target_single + offset_adjustment) * 2) | round / 2 }}"
+                      new_target_single: "{{ ((current_target_single + offset_adjustment + natural_heat_cool_adjustment) * 2) | round / 2 }}"
+                  # Safety condition to ensure the new setpoint is within a reasonable range.
                   - condition: template
                     value_template: "{{ new_target_single >= safety_min and new_target_single <= safety_max }}"
                   - service: climate.set_temperature
@@ -702,54 +634,155 @@ actions:
                       entity_id: !input thermostat
                     data:
                       temperature: "{{ new_target_single }}"
+    default:
+      # --- WEATHER DISABLED PATH ---
+      # This block executes if the weather integration is disabled or no entity is provided.
+      # The logic is a simplified version of the weather-enabled path, without weather adjustments.
+      # Calculate new target setpoints with directional adjustments
+      - variables:
+          # Calculate the new heating setpoint
+          calculated_low: >-
+            {% if temp_difference < -0.5 %}
+              {% if offset_adjustment > 0 %}
+                {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
+              {% else %}
+                {{ current_target_low }}
+              {% endif %}
+            {% else %}
+              {{ current_target_low }}
+            {% endif %}
 
-      # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
-      # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
-      # If fan is set to medium or high, we don't change it (assuming user manual override)
-      # Added 1-minute delay to avoid API melt
+      - variables:
+          # Calculate the new cooling setpoint
+          calculated_high: >-
+            {% if temp_difference > 0.5 %}
+              {% if offset_adjustment < 0 %}
+                {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
+              {% else %}
+                {{ current_target_high }}
+              {% endif %}
+            {% else %}
+              {{ current_target_high }}
+            {% endif %}
+
+      - variables:
+          # Ensure minimum 1°C difference between setpoints by adjusting whichever setpoint changed less
+          final_calculation: >-
+            {% set low = calculated_low|float %}
+            {% set high = calculated_high|float %}
+            {% set low_change = (low - current_target_low|float)|abs %}
+            {% set high_change = (high - current_target_high|float)|abs %}
+
+            {% if (high - low) < 1 %}
+              {% if low_change <= high_change %}
+                {# The low setpoint changed less, so adjust it downward #}
+                low:{{ high - 1 }};high:{{ high }}
+              {% else %}
+                {# The high setpoint changed less, so adjust it upward #}
+                {% set new_high = ((low + 1) * 2) | round / 2 %}
+                low:{{ low }};high:{{ new_high }}
+              {% endif %}
+            {% else %}
+              low:{{ low }};high:{{ high }}
+            {% endif %}
+
+      - variables:
+          # Extract adjusted values using string parsing
+          adjusted_low: >-
+            {% set parts = final_calculation.split(';') %}
+            {% set low_part = parts[0].split(':') %}
+            {{ low_part[1]|float }}
+          adjusted_high: >-
+            {% set parts = final_calculation.split(';') %}
+            {% set high_part = parts[1].split(':') %}
+            {{ high_part[1]|float }}
+          new_target_low: "{{ adjusted_low }}"
+          new_target_high: "{{ adjusted_high }}"
+
+      # Switches HVAC mode if necessary
       - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
+          - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
             sequence:
-              - delay: "00:01:00"
-              - service: climate.set_fan_mode
+              - service: climate.set_hvac_mode
                 target:
                   entity_id: !input thermostat
                 data:
-                  fan_mode: "low"
-
-      # Debug message is now the last action in the automation
+                  hvac_mode: "{{ needed_mode }}"
+      # Adjusts temperature setpoints for the current mode, without weather adjustments.
       - choose:
-          - conditions: "{{ debug_notifications_enabled }}"
+          - conditions:
+              - "{{ thermostat_mode == 'heat_cool' }}"
+              - "{{ new_target_low != current_target_low or new_target_high != current_target_high }}"
             sequence:
-              - service: persistent_notification.create
+              - condition: template
+                value_template: "{{ new_target_low >= safety_min and new_target_high <= safety_max and new_target_low < new_target_high }}"
+              - service: climate.set_temperature
+                target:
+                  entity_id: !input thermostat
                 data:
-                  title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
-                  message: >
-                    Time: {{ current_hour | round(1) }}h
-                    Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
-                    Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
-                    Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+                  target_temp_low: "{{ new_target_low }}"
+                  target_temp_high: "{{ new_target_high }}"
+          - conditions:
+              - "{{ thermostat_mode in ['heat', 'cool'] }}"
+              - "{{ offset_adjustment != 0 }}"
+            sequence:
+              - variables:
+                  new_target_single: "{{ ((current_target_single + offset_adjustment) * 2) | round / 2 }}"
+              - condition: template
+                value_template: "{{ new_target_single >= safety_min and new_target_single <= safety_max }}"
+              - service: climate.set_temperature
+                target:
+                  entity_id: !input thermostat
+                data:
+                  temperature: "{{ new_target_single }}"
 
-                    {% if is_weather_available %}
-                    Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
-                    Thermal Analysis: Solar Impact: {{ solar_impact }} | Building: {{ building_thermal_contribution }}
-                    Natural Trend: {{ natural_trend | title }} | Feels Like: {{ feels_like_temp|round(1) }}°C
-                    {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Gradient: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
-                    {% else %}
-                    Weather Integration: Off
-                    {% endif %}
+  # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
+  # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
+  # If fan is set to medium or high, we don't change it (assuming user manual override)
+  # Added 1-minute delay to avoid API melt
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
+        sequence:
+          - delay: "00:01:00"
+          - service: climate.set_fan_mode
+            target:
+              entity_id: !input thermostat
+            data:
+              fan_mode: "low"
 
-                    {% set low_change = new_target_low|float - current_target_low|float %}
-                    {% set high_change = new_target_high|float - current_target_high|float %}
-                    {% if low_change != 0 or high_change != 0 %}
-                    Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
-                    {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
-                    {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
-                    {% else %}
-                    Action: No temperature adjustment needed
-                    {% endif %}
+  # Debug message is now the last action in the automation
+  - choose:
+      - conditions: "{{ debug_notifications_enabled }}"
+        sequence:
+          - service: persistent_notification.create
+            data:
+              title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
+              message: >
+                Time: {{ current_hour | round(1) }}h
+                Temperatures: Desired: {{ desired_temp }}°C | Current: {{ current_target_temp }}°C | Diff: {{ temp_difference }}°C
+                Mode: {{ thermostat_mode }} | Needed: {{ needed_mode }}
+                Current Range: {{ current_target_low }}-{{ current_target_high }}°C
+
+                {% if is_weather_available %}
+                Weather: Outdoor: {{ current_outdoor_temp }}°C | Condition: {{ current_condition }}
+                Thermal Analysis: Solar Impact: {{ solar_impact }} | House Thermal Mass: {% if building_thermal_contribution == 'warming' %}Heating Up{% elif building_thermal_contribution == 'cooling' %}Cooling Down{% else %}Stable{% endif %}
+                Natural Temperature Trend: {% if natural_trend == 'warming' %}Getting Warmer{% elif natural_trend == 'cooling' %}Getting Cooler{% else %}Stable{% endif %} | Feels Like: {{ feels_like_temp|round(1) }}°C
+                {% if current_humidity != "unknown" %}Humidity: {{ current_humidity|round(1) }}% | {% endif %}Indoor-Outdoor Difference: {{ (desired_temp - current_outdoor_temp) | round(1) }}°C
+                {% else %}
+                Weather Integration: Off
+                {% endif %}
+
+                {% set low_change = new_target_low|float - current_target_low|float %}
+                {% set high_change = new_target_high|float - current_target_high|float %}
+                {% if low_change != 0 or high_change != 0 %}
+                Action: Adjusting setpoints → New Range: {{ new_target_low }}-{{ new_target_high }}°C
+                {% if low_change != 0 %}Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }}°C){% endif %}
+                {% if high_change != 0 %}Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }}°C){% endif %}
+                {% else %}
+                Action: No temperature adjustment needed
+                {% endif %}
 
 variables:
   # --- VARIABLE DEFINITIONS ---
