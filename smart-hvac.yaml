@@ -81,7 +81,7 @@ blueprint:
     sensor_timeout:
       name: Sensor Timeout (hours)
       description: Skip automation if sensor hasn't updated within this many hours
-      default: 1
+      default: 2
       selector:
         number:
           min: 0.5
@@ -260,9 +260,31 @@ actions:
                 sequence:
                   - service: persistent_notification.create
                     data:
-                      title: "Smart Thermostat – Safety Check Failed"
-                      message: >
-                        Safety check failed. Skipping automation run.\n\nDay sensor ({{ day_target_sensor_entity }}): {{ states(day_target_sensor_entity) }}\nNight sensor ({{ night_target_sensor_entity }}): {{ states(night_target_sensor_entity) }}\nData freshness (seconds): Day {{ (now() - states[day_target_sensor_entity].last_updated).seconds }}, Night {{ (now() - states[night_target_sensor_entity].last_updated).seconds }}\nValid temperature range: {{ min_temp_limit_value }}–{{ max_temp_limit_value }}°C
+                      title: "🛡️ Smart Thermostat Safety Check Failed"
+                      message: |-
+                        **Automation skipped due to sensor validation failure.**
+
+                        **Current Readings:**
+                        • Day sensor: {{ states(day_target_sensor_entity) }} °C ({{ day_target_sensor_entity }})
+                        • Night sensor: {{ states(night_target_sensor_entity) }} °C ({{ night_target_sensor_entity }})
+
+                        **Data Freshness:**
+                        • Day sensor: {{ ((now() - states[day_target_sensor_entity].last_updated).total_seconds() / 60) | round(1) }} minutes ago
+                        • Night sensor: {{ ((now() - states[night_target_sensor_entity].last_updated).total_seconds() / 60) | round(1) }} minutes ago
+                        • **Timeout limit:** {{ sensor_timeout_hours }} hours ({{ (sensor_timeout_hours * 60) | round(0) }} minutes)
+
+                        **Temperature Limits:** {{ min_temp_limit_value }} – {{ max_temp_limit_value }} °C
+
+                        {% set day_age_minutes = ((now() - states[day_target_sensor_entity].last_updated).total_seconds() / 60) %}
+                        {% set night_age_minutes = ((now() - states[night_target_sensor_entity].last_updated).total_seconds() / 60) %}
+                        {% set timeout_minutes = sensor_timeout_hours * 60 %}
+                        {% if day_age_minutes > timeout_minutes or night_age_minutes > timeout_minutes %}
+                        **Issue:** Sensor data is stale (older than {{ (sensor_timeout_hours * 60) | round(0) }} minutes)
+                        **Solution:** Check sensor connectivity or increase timeout in blueprint settings
+                        {% else %}
+                        **Issue:** Temperature readings outside valid range
+                        **Solution:** Check sensor calibration or adjust temperature limits
+                        {% endif %}
           - stop: "Safety check failed – automation halted"
 
   # Weather-enabled path
