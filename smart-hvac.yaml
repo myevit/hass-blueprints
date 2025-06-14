@@ -1,17 +1,29 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
-  description: >
-    **Version: 1.8.0**
+  description: |
+    **Version: 1.9.0**
 
-    Intelligent thermostat control using separate day and night temperature sensors with
-    dynamic day/night temperature targets and circadian rhythm simulation.
-    Automatically switches between sensors based on configurable time schedule
-    (default: day sensor 6 AM-10 PM, night sensor 10 PM-6 AM) and adjusts HVAC
-    modes and setpoints for optimal comfort throughout the day.
-    Uses temperature gradient between indoor and outdoor temperatures to predict natural heating/cooling patterns.
-    Advanced solar and weather condition analysis for predictive thermal management.
-    Ensures fan is never set to 'off' by automatically switching it to 'low'.
-    Simple circadian rhythm control: slider sets coolest AM hour and warmest PM hour.
+    Smart single-zone thermostat brain for Home Assistant.
+
+    WHAT IT DOES
+    • Chooses a *Day* or *Night* room sensor automatically by the clock.
+    • Glides between your Day and Night target temps using a smooth circadian curve.
+    • Every 60 min decides whether to Heat, Cool or Heat-Cool and gently nudges the set-points toward the target.
+    • Can factor in outdoor weather/temperature, indoor humidity and solar impact to anticipate natural trends and save energy.
+    • Keeps the fan from ever being 'off' (great for ERV/HRV systems).
+
+    HOW TO USE
+    1. Pick your Day & Night sensors.
+    2. Choose whether each target temp comes from an *input_number* helper or a fixed value.
+    3. Set the hours when each sensor becomes active (e.g. Day 06:00, Night 22:00).
+    4. (Optional) Toggle weather, outdoor-temp sensor or humidity sensor support and tune the adjustment factors.
+    5. Turn on *Debug Notifications* to see a step-by-step breakdown in Home Assistant.
+
+    SAFETY FIRST
+    • Automation aborts if any sensor/thermostat data is stale, unknown or outside your min/max limits and explains why.
+    • All set-points are clamped between the safety min/max values you define.
+
+    Zero YAML edits required—everything is configurable via the blueprint UI.
 
   domain: automation
 
@@ -55,6 +67,43 @@ blueprint:
         entity:
           filter:
             domain: input_number
+
+    # --- DAY & NIGHT TARGET TEMPERATURE MODE TOGGLES ---
+    use_day_temp_input:
+      name: Use Day Temperature Helper
+      description: Enable to read the daytime target from an input_number helper. Disable to use the fixed value below.
+      selector:
+        boolean:
+      default: true
+
+    day_temp_static:
+      name: Day Target Temperature (Fixed)
+      description: Fixed daytime target temperature when helper is disabled
+      default: 22
+      selector:
+        number:
+          min: 10
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
+
+    use_night_temp_input:
+      name: Use Night Temperature Helper
+      description: Enable to read the nighttime target from an input_number helper. Disable to use the fixed value below.
+      selector:
+        boolean:
+      default: true
+
+    night_temp_static:
+      name: Night Target Temperature (Fixed)
+      description: Fixed nighttime target temperature when helper is disabled
+      default: 20
+      selector:
+        number:
+          min: 10
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
 
     day_sensor_start_hour:
       name: Day Sensor Start Hour
@@ -151,6 +200,20 @@ blueprint:
             domain: sensor
       default: ""
 
+    use_outdoor_temp_sensor:
+      name: Use Outdoor Temperature Sensor
+      description: Enable to include the outdoor temperature sensor in calculations.
+      selector:
+        boolean:
+      default: false
+
+    use_humidity_sensor:
+      name: Use Humidity Sensor
+      description: Enable to include the indoor humidity sensor in calculations.
+      selector:
+        boolean:
+      default: false
+
     solar_adjustment:
       name: Solar Impact Factor
       description: Adjustment factor for direct sunlight impact (higher = stronger impact)
@@ -217,6 +280,27 @@ blueprint:
           step: 1
           unit_of_measurement: "°C"
 
+    # --- FAN MODE ENFORCEMENT ---
+    enforce_fan_mode:
+      name: Enforce Fan Mode
+      description: Ensure the thermostat fan is set to a specific mode after every run.
+      selector:
+        boolean:
+      default: true
+
+    fan_mode_setting:
+      name: Fan Mode to Enforce
+      description: Fan mode that will be applied when enforcement is enabled.
+      selector:
+        select:
+          options:
+            - "low"
+            - "medium"
+            - "high"
+            - "on"
+            - "auto"
+      default: "low"
+
 alias: Smart Thermostat - Auto Mode Switching
 description: >-
   Single temperature control with automatic heating/cooling mode switching based
@@ -267,24 +351,29 @@ actions:
                         **Current Readings:**
                         • Day sensor: {{ states(day_target_sensor_entity) }} °C ({{ day_target_sensor_entity }})
                         • Night sensor: {{ states(night_target_sensor_entity) }} °C ({{ night_target_sensor_entity }})
+                        • Thermostat: {{ state_attr(thermostat_entity, 'current_temperature') | default('unknown') }} °C ({{ thermostat_entity }})
 
                         **Data Freshness:**
                         • Day sensor: {{ ((now() - states[day_target_sensor_entity].last_updated).total_seconds() / 60) | round(1) }} minutes ago
                         • Night sensor: {{ ((now() - states[night_target_sensor_entity].last_updated).total_seconds() / 60) | round(1) }} minutes ago
+                        • Thermostat: {{ ((now() - states[thermostat_entity].last_updated).total_seconds() / 60) | round(1) }} minutes ago
                         • **Timeout limit:** {{ sensor_timeout_hours }} hours ({{ (sensor_timeout_hours * 60) | round(0) }} minutes)
 
                         **Temperature Limits:** {{ min_temp_limit_value }} – {{ max_temp_limit_value }} °C
 
                         {% set day_age_minutes = ((now() - states[day_target_sensor_entity].last_updated).total_seconds() / 60) %}
                         {% set night_age_minutes = ((now() - states[night_target_sensor_entity].last_updated).total_seconds() / 60) %}
+                        {% set thermostat_age_minutes = ((now() - states[thermostat_entity].last_updated).total_seconds() / 60) %}
                         {% set timeout_minutes = sensor_timeout_hours * 60 %}
-                        {% if day_age_minutes > timeout_minutes or night_age_minutes > timeout_minutes %}
+                        {% if day_age_minutes > timeout_minutes or night_age_minutes > timeout_minutes or thermostat_age_minutes > timeout_minutes %}
                         **Issue:** Sensor data is stale (older than {{ (sensor_timeout_hours * 60) | round(0) }} minutes)
                         **Solution:** Check sensor connectivity or increase timeout in blueprint settings
                         {% else %}
                         **Issue:** Temperature readings outside valid range
                         **Solution:** Check sensor calibration or adjust temperature limits
                         {% endif %}
+
+                        **Note:** If you are using an *average* or *statistics* sensor, its `last_updated` timestamp only updates when the calculated value changes. When the temperature is stable, this can make a healthy sensor look stale. If this is the case, consider increasing the *Sensor Timeout* in the blueprint settings or switch to a raw sensor for freshness checks.
           - stop: "Safety check failed – automation halted"
 
   # Weather-enabled path
@@ -745,21 +834,20 @@ actions:
                 data:
                   temperature: "{{ new_target_single }}"
 
-  # Ensures fan is always running for ERV (Energy Recovery Ventilator) operation after all other operations
-  # Fan must never be in 'off' or 'auto' states as ERV requires continuous airflow
-  # If fan is set to medium or high, we don't change it (assuming user manual override)
-  # Added 1-minute delay to avoid API melt
+  # Ensures the fan mode is enforced (useful for ERV/HRV setups)
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ state_attr(thermostat_entity, 'fan_mode') in ['off', 'auto'] }}"
+            value_template: "{{ enforce_fan_mode_input }}"
+          - condition: template
+            value_template: "{{ state_attr(thermostat_entity, 'fan_mode') not in [desired_fan_mode] }}"
         sequence:
-          - delay: "00:01:00"
+          - delay: "00:01:00"   # avoid API spam if previous services run back-to-back
           - service: climate.set_fan_mode
             target:
               entity_id: !input thermostat
             data:
-              fan_mode: "low"
+              fan_mode: "{{ desired_fan_mode }}"
 
   # Debug message is now the last action in the automation
   - choose:
@@ -806,14 +894,30 @@ variables:
   thermostat_entity: !input thermostat
   day_temp_input_entity: !input day_temp_input
   night_temp_input_entity: !input night_temp_input
+  use_day_temp_input: !input use_day_temp_input
+  use_night_temp_input: !input use_night_temp_input
+  day_temp_static: !input day_temp_static
+  night_temp_static: !input night_temp_static
   day_start_hour: !input day_sensor_start_hour
   night_start_hour: !input night_sensor_start_hour
   sensor_timeout_hours: !input sensor_timeout
   min_temp_limit_value: !input min_temp_limit
   max_temp_limit_value: !input max_temp_limit
   weather_entity: !input weather_entity
-  outdoor_temp_entity: !input outdoor_temp_sensor
-  humidity_entity: !input humidity_sensor
+  outdoor_temp_sensor_input: !input outdoor_temp_sensor
+  use_outdoor_temp_sensor_input: !input use_outdoor_temp_sensor
+  outdoor_temp_entity: >
+    {% if use_outdoor_temp_sensor_input and outdoor_temp_sensor_input != "" %}
+      {{ outdoor_temp_sensor_input }}
+    {% else %}
+      ""
+    {% endif %}
+
+  humidity_sensor_input: !input humidity_sensor
+  use_humidity_sensor_input: !input use_humidity_sensor
+  enforce_fan_mode_input: !input enforce_fan_mode
+  fan_mode_setting_input: !input fan_mode_setting
+  desired_fan_mode: "{{ fan_mode_setting_input if fan_mode_setting_input | length > 0 else 'low' }}"
   use_weather_forecast_input: !input use_weather_forecast
   debug_notifications_enabled: !input debug_notifications
   forecast_adjustment_value: !input forecast_adjustment
@@ -851,9 +955,21 @@ variables:
       {% endif %}
     {% endif %}
 
-  # Fetches the target temperatures from the input_number helpers.
-  day_temp: "{{ states(day_temp_input_entity) | float(24) }}"
-  night_temp: "{{ states(night_temp_input_entity) | float(20) }}"
+  # Fetches the target temperatures from either helpers or fixed values based on the toggle.
+  day_temp: >
+    {% if use_day_temp_input and day_temp_input_entity != "" %}
+      {{ states(day_temp_input_entity) | float(24) }}
+    {% else %}
+      {{ day_temp_static | float(24) }}
+    {% endif %}
+
+  night_temp: >
+    {% if use_night_temp_input and night_temp_input_entity != "" %}
+      {{ states(night_temp_input_entity) | float(20) }}
+    {% else %}
+      {{ night_temp_static | float(20) }}
+    {% endif %}
+
   # Gets the current hour as a float (e.g., 18.5 for 6:30 PM) for use in calculations.
   current_hour: "{{ now().hour + (now().minute / 60.0) }}"
 
@@ -861,10 +977,10 @@ variables:
   # This simulates a natural circadian rhythm with the coolest temperature at the selected AM hour
   # and warmest at the same PM hour (12 hours later).
   desired_temp: >
-    {% set day_temp = states(day_temp_input_entity) | float(24) %}
-    {% set night_temp = states(night_temp_input_entity) | float(20) %}
+    {% set dtemp = day_temp %}
+    {% set ntemp = night_temp %}
     {% set hour = now().hour + (now().minute / 60.0) %}
-    {% set temp_range = day_temp - night_temp %}
+    {% set temp_range = dtemp - ntemp %}
     {% set coolest_hour = circadian_hour_value | int %}
     {% if coolest_hour == 0 %}
       {% set coolest_hour = 0 %}
@@ -873,7 +989,7 @@ variables:
     {# Create smooth curve: coolest at the selected AM hour, warmest 12 hours later #}
     {% set phase = (hour - coolest_hour) * 15 %}  {# Convert to degrees (24h = 360°) #}
     {% set curve = (1 - cos(phase | float * 3.14159 / 180)) / 2 %} {# Inverted curve #}
-    {% set dynamic_temp = night_temp + (temp_range * curve) %}
+    {% set dynamic_temp = ntemp + (temp_range * curve) %}
 
     {{ dynamic_temp | round(1) }}
 
@@ -939,4 +1055,11 @@ variables:
                              (now() - night_state.last_updated).total_seconds() < timeout_seconds %}
       {% set thermo_fresh = (now() - thermo_state.last_updated).total_seconds() < timeout_seconds %}
       {{ temp_valid and sensors_fresh and thermo_fresh }}
+    {% endif %}
+
+  humidity_entity: >
+    {% if use_humidity_sensor_input and humidity_sensor_input != "" %}
+      {{ humidity_sensor_input }}
+    {% else %}
+      ""
     {% endif %}
