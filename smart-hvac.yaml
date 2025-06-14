@@ -919,10 +919,12 @@ variables:
     {% set night_s = night_target_sensor_entity %}
     {% set day_state = states[day_s] %}
     {% set night_state = states[night_s] %}
+    {% set thermo_state = states[thermostat_entity] %}
     {% set timeout_seconds = sensor_timeout_hours * 3600 %}
 
     {% if day_state is none or day_state.state in ['unknown', 'unavailable', 'none'] or
-          night_state is none or night_state.state in ['unknown', 'unavailable', 'none'] %}
+          night_state is none or night_state.state in ['unknown', 'unavailable', 'none'] or
+          thermo_state is none or thermo_state.state in ['unknown', 'unavailable', 'none'] %}
       false
     {% else %}
       {% set day_temp = day_state.state | float(-99) %}
@@ -933,7 +935,8 @@ variables:
                           day_temp <= max_temp_limit_value and
                           night_temp <= max_temp_limit_value %}
 
-      {% set data_fresh = (now() - day_state.last_updated).total_seconds() < timeout_seconds and
-                          (now() - night_state.last_updated).total_seconds() < timeout_seconds %}
-      {{ temp_valid and data_fresh }}
+      {% set sensors_fresh = (now() - day_state.last_updated).total_seconds() < timeout_seconds and
+                             (now() - night_state.last_updated).total_seconds() < timeout_seconds %}
+      {% set thermo_fresh = (now() - thermo_state.last_updated).total_seconds() < timeout_seconds %}
+      {{ temp_valid and sensors_fresh and thermo_fresh }}
     {% endif %}
