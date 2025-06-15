@@ -1,7 +1,12 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: |
-    **Version: 1.10.0**
+    **Version: 1.11.0**
+
+    MAIN GOAL
+    • Use an external (often more accurate or conveniently placed) temperature sensor to steer a thermostat that cannot natively follow that sensor.  The automation transparently nudges set-points so the HVAC keeps the **room**—not just the thermostat—within your comfort band.
+    • Ordering rule enforced at every cycle:
+      safety_min  <  night_temp  ≤  (desired ± 0.5 °C)  ≤  day_temp  <  safety_max
 
     Smart single-zone thermostat brain for Home Assistant.
 
@@ -11,6 +16,7 @@ blueprint:
     • Every 60 min decides whether to Heat, Cool or Heat-Cool and gently nudges the set-points toward the target.
     • Can factor in outdoor weather/temperature, indoor humidity and solar impact to anticipate natural trends and save energy.
     • Keeps the fan from ever being 'off' (great for ERV/HRV systems).
+    • Optional toggle lets the blueprint switch between *heat* and *cool* when the thermostat is operating in a single-mode.  When the thermostat itself is on *auto/heat_cool* the automation never changes mode.
 
     HOW TO USE
     1. Pick your Day & Night sensors.
@@ -426,22 +432,18 @@ actions:
 
               # Calculate solar impact based on weather condition and time of day
               solar_impact: >
-                {% set hour = now().hour %}
-                {% set is_daytime = hour >= 6 and hour <= 18 %}
-                {% set sunny_conditions = ['sunny', 'partlycloudy'] %}
-                {% set partial_conditions = ['partlycloudy', 'cloudy'] %}
-
-                {% if is_daytime and current_condition in sunny_conditions %}
-                  {% if current_condition == 'sunny' %}
-                    {{ solar_adjustment_value }}
-                  {% elif current_condition == 'partlycloudy' %}
-                    {{ solar_adjustment_value * 0.5 }}
-                  {% else %}
-                    0
-                  {% endif %}
-                {% else %}
-                  0
-                {% endif %}
+                {% if is_weather_available %}
+                  {% set cond = state_attr(weather_entity, 'condition') %}
+                  {% set hour = now().hour %}
+                  {% set is_daytime = 6 <= hour <= 18 %}
+                  {% if is_daytime and cond in ['sunny', 'partlycloudy'] %}
+                    {% if cond == 'sunny' %}
+                      {{ solar_adjustment_value|float }}
+                    {% else %}
+                      {{ (solar_adjustment_value|float) * 0.5 }}
+                    {% endif %}
+                  {% else %}0{% endif %}
+                {% else %}0{% endif %}
 
               # Calculate "feels like" temperature if humidity sensor is available
               feels_like_temp: >
@@ -624,31 +626,72 @@ actions:
           - variables:
               # Calculate the new heating setpoint
               calculated_low: >-
-                {% if offset_adjustment > 0 %}
-                  {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
-                {% elif temp_difference > 0.5 and natural_trend == 'warming' %}
-                  {% if weather_adjustment_for_range|float < 0 %}
-                    {{ ((current_target_low + weather_adjustment_for_range) * 2) | round / 2 }}
+                {% if thermostat_mode == 'heat_cool' %}
+                  {# If the room temp is already inside the desired band we leave the band unchanged #}
+                  {% if offset_adjustment == 0 %}
+                    {{ current_target_low }}
+                  {% else %}
+                    {# Build heat_cool low set-point obeying ordering and ±0.5 °C step cap #}
+                    {% set desired_band_low = ((desired_temp - 0.5) * 2) | round / 2 %}
+                    {% set low_candidate = [ desired_band_low, night_temp, safety_min ] | max %}
+                    {% set high_limit = [ day_temp, safety_max ] | min %}
+                    {% set low_final = [ low_candidate, high_limit - 1 ] | min %}
+
+                    {% set delta = low_final - current_target_low %}
+                    {% if delta > 0.5 %}
+                      {{ (current_target_low + 0.5) | round(1) }}
+                    {% elif delta < -0.5 %}
+                      {{ (current_target_low - 0.5) | round(1) }}
+                    {% else %}
+                      {{ low_final }}
+                    {% endif %}
+                  {% endif %}
+                {% else %}
+                  {% if offset_adjustment > 0 %}
+                    {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
+                  {% elif temp_difference > 0.5 and natural_trend == 'warming' %}
+                    {% if weather_adjustment_for_range|float < 0 %}
+                      {{ ((current_target_low + weather_adjustment_for_range) * 2) | round / 2 }}
+                    {% else %}
+                      {{ current_target_low }}
+                    {% endif %}
                   {% else %}
                     {{ current_target_low }}
                   {% endif %}
-                {% else %}
-                  {{ current_target_low }}
                 {% endif %}
 
           - variables:
               # Calculate the new cooling setpoint
               calculated_high: >-
-                {% if offset_adjustment < 0 %}
-                  {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
-                {% elif temp_difference < -0.5 and natural_trend == 'cooling' %}
-                  {% if weather_adjustment_for_range|float > 0 %}
-                    {{ ((current_target_high + weather_adjustment_for_range) * 2) | round / 2 }}
+                {% if thermostat_mode == 'heat_cool' %}
+                  {# If the room temp is already inside the desired band we leave the band unchanged #}
+                  {% if offset_adjustment == 0 %}
+                    {{ current_target_high }}
+                  {% else %}
+                    {% set raw_high = calculated_low + 1 %}
+                    {% set high_cap = [ day_temp, safety_max ] | min %}
+                    {% set new_high = [ raw_high, high_cap ] | min %}
+                    {% set delta_high = new_high - current_target_high %}
+                    {% if delta_high > 0.5 %}
+                      {{ (current_target_high + 0.5) | round(1) }}
+                    {% elif delta_high < -0.5 %}
+                      {{ (current_target_high - 0.5) | round(1) }}
+                    {% else %}
+                      {{ new_high }}
+                    {% endif %}
+                  {% endif %}
+                {% else %}
+                  {% if offset_adjustment < 0 %}
+                    {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
+                  {% elif temp_difference < -0.5 and natural_trend == 'cooling' %}
+                    {% if weather_adjustment_for_range|float > 0 %}
+                      {{ ((current_target_high + weather_adjustment_for_range) * 2) | round / 2 }}
+                    {% else %}
+                      {{ current_target_high }}
+                    {% endif %}
                   {% else %}
                     {{ current_target_high }}
                   {% endif %}
-                {% else %}
-                  {{ current_target_high }}
                 {% endif %}
 
           - variables:
@@ -728,6 +771,7 @@ actions:
                       entity_id: !input thermostat
                     data:
                       temperature: "{{ new_target_single }}"
+
     default:
       # --- WEATHER DISABLED PATH ---
       # This block executes if the weather integration is disabled or no entity is provided.
@@ -736,7 +780,21 @@ actions:
       - variables:
           # Calculate the new heating setpoint
           calculated_low: >-
-            {% if offset_adjustment > 0 %}
+            {% if thermostat_mode == 'heat_cool' %}
+              {% set desired_band_low = ((desired_temp - 0.5) * 2) | round / 2 %}
+              {% set low_candidate = [ desired_band_low, night_temp, safety_min ] | max %}
+              {% set high_limit = [ day_temp, safety_max ] | min %}
+              {% set low_final = [ low_candidate, high_limit - 1 ] | min %}
+
+              {% set delta = low_final - current_target_low %}
+              {% if delta > 0.5 %}
+                {{ (current_target_low + 0.5) | round(1) }}
+              {% elif delta < -0.5 %}
+                {{ (current_target_low - 0.5) | round(1) }}
+              {% else %}
+                {{ low_final }}
+              {% endif %}
+            {% elif offset_adjustment > 0 %}
               {{ ((current_target_low + offset_adjustment|abs) * 2) | round / 2 }}
             {% else %}
               {{ current_target_low }}
@@ -745,7 +803,19 @@ actions:
       - variables:
           # Calculate the new cooling setpoint
           calculated_high: >-
-            {% if offset_adjustment < 0 %}
+            {% if thermostat_mode == 'heat_cool' %}
+              {% set raw_high = calculated_low + 1 %}
+              {% set high_cap = [ day_temp, safety_max ] | min %}
+              {% set new_high = [ raw_high, high_cap ] | min %}
+              {% set delta_high = new_high - current_target_high %}
+              {% if delta_high > 0.5 %}
+                {{ (current_target_high + 0.5) | round(1) }}
+              {% elif delta_high < -0.5 %}
+                {{ (current_target_high - 0.5) | round(1) }}
+              {% else %}
+                {{ new_high }}
+              {% endif %}
+            {% elif offset_adjustment < 0 %}
               {{ ((current_target_high + offset_adjustment) * 2) | round / 2 }}
             {% else %}
               {{ current_target_high }}
@@ -845,30 +915,28 @@ actions:
             data:
               title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
               message: |-
-                **Time:** {{ current_hour | round(1) }} h
-                **Desired / Current / Δ:** {{ desired_temp }} °C / {{ current_target_temp }} °C / {{ temp_difference }} °C
-                **Mode:** {{ thermostat_mode }} → **Needed:** {{ needed_mode }}
-                **Range:** {{ current_target_low }} – {{ current_target_high }} °C
+                **Current**
+                • Sensor: {{ current_target_temp }} °C
+                • Desired now: {{ desired_temp }} °C (Δ {{ '{:+.1f}'.format(temp_difference) }} °C)
+                • HVAC range: {{ current_target_low }} – {{ current_target_high }} °C
 
-                {% if is_weather_available %}
-                **Weather**
-                • Outdoor: {{ current_outdoor_temp | round(1) }} °C ({{ current_condition }})
-                • Solar impact: {{ solar_impact }}
-                • Thermal mass: {% if building_thermal_contribution == 'warming' %}Heating Up{% elif building_thermal_contribution == 'cooling' %}Cooling Down{% else %}Stable{% endif %}
-                • Trend: {% if natural_trend == 'warming' %}Getting Warmer{% elif natural_trend == 'cooling' %}Getting Cooler{% else %}Stable{% endif %}
-                • Feels like: {{ feels_like_temp|round(1) }} °C
-                {% if current_humidity != "unknown" %}• Humidity: {{ current_humidity|round(1) }} %{% endif %}
-                • Indoor-Outdoor Δ: {{ (desired_temp - current_outdoor_temp) | round(1) }} °C
-                {% else %}
-                **Weather Integration:** Off
-                {% endif %}
+                **Weather Impact in next 1H**
+                Solar {{ '{:+.1f}'.format(solar_adj|float) }} | Feels {{ '{:+.1f}'.format(feels_adj|float) }} | Trend {{ '{:+.1f}'.format(trend_adj|float) }} → **Total {{ '{:+.1f}'.format(weather_effect) }}**
+
+                **Projection**
+                • Room in 1 h: {{ projected_room_plus1h }} °C
+                • Target in 1 h: {{ aggregated_desired_plus1h | default((desired_temp_plus1h + weather_effect) | round(1)) }} °C
+                • Δ (room – target): {{ (projected_room_plus1h - (aggregated_desired_plus1h |
+                      default((desired_temp_plus1h + weather_effect) | round(1)))) | round(1, default='+0.0') }} °C
+
+                **HVAC**
+                Mode: {{ thermostat_mode }} → Needed: {{ needed_mode }}
 
                 {% set low_change = new_target_low|float - current_target_low|float %}
                 {% set high_change = new_target_high|float - current_target_high|float %}
                 {% if low_change != 0 or high_change != 0 %}
-                **Action:** Adjusting setpoints → {{ new_target_low }} – {{ new_target_high }} °C
-                {% if low_change != 0 %}• Heat: {{ current_target_low }} → {{ new_target_low }} ({{ low_change|round(1) }} °C){% endif %}
-                {% if high_change != 0 %}• Cool: {{ current_target_high }} → {{ new_target_high }} ({{ high_change|round(1) }} °C){% endif %}
+                **Action:** Heat {{ '{:+.1f}'.format(low_change) }} °C | Cool {{ '{:+.1f}'.format(high_change) }} °C
+                New range → {{ new_target_low }} – {{ new_target_high }} °C
                 {% else %}
                 **Action:** No temperature adjustment needed
                 {% endif %}
@@ -1009,16 +1077,17 @@ variables:
   # occur when the room drifts outside the permitted band:
   #   max( low set-point , desired-0.5 )  ≤  room temp  ≤  min( high set-point , desired+0.5 )
   offset_adjustment: >
-    {%- set band_low  = [ current_target_low , (desired_temp - 0.5) ] | max -%}
-    {%- set band_high = [ current_target_high, (desired_temp + 0.5) ] | min -%}
+    {# Room-driven offset: nudge ±0.5 °C when the actual temperature leaves desired ±0.5 °C band #}
+    {% set low_band = desired_temp - 0.5 %}
+    {% set high_band = desired_temp + 0.5 %}
 
-    {%- if current_target_temp > band_high -%}
-      -0.5
-    {%- elif current_target_temp < band_low -%}
+    {% if current_target_temp < low_band %}
       0.5
-    {%- else -%}
+    {% elif current_target_temp > high_band %}
+      -0.5
+    {% else %}
       0
-    {%- endif -%}
+    {% endif %}
 
   # Variable for consolidated sensor validation logic
   sensors_valid: >
@@ -1056,3 +1125,61 @@ variables:
     {% endif %}
 
   allow_mode_switch_input: !input allow_mode_switch
+
+  # New variable for weather effect and adjusted current temp
+  weather_effect: "{{ weather_adjustment_for_range|default(0)|float }}"
+  adjusted_current_temp: "{{ ((feels_like_temp|default(current_target_temp))|float + weather_effect|float)|round(1) }}"
+  aggregated_desired_temp: "{{ (desired_temp|float + weather_effect|float)|round(1) }}"
+  # Break-down of weather adjustment components for debug
+  solar_adj: >
+    {% if is_weather_available %}
+      {% set cond = state_attr(weather_entity, 'condition') %}
+      {% set hour = now().hour %}
+      {% set is_daytime = 6 <= hour <= 18 %}
+      {% if is_daytime and cond in ['sunny', 'partlycloudy'] %}
+        {% if cond == 'sunny' %}
+          {{ solar_adjustment_value|float }}
+        {% else %}
+          {{ (solar_adjustment_value|float) * 0.5 }}
+        {% endif %}
+      {% else %}0{% endif %}
+    {% else %}0{% endif %}
+  feels_adj: >
+    {% if feels_like_temp|default(0)|float > current_target_temp|float + 0.5 %}0.2
+    {% elif feels_like_temp|default(0)|float < current_target_temp|float - 0.5 %}-0.2
+    {% else %}0{% endif %}
+  trend_adj: "{{ (weather_effect|float - solar_adj|float - feels_adj|float)|round(2) }}"
+
+  desired_temp_plus1h: >
+    {% set hour = (now() + timedelta(hours=1)).hour
+       + ((now() + timedelta(hours=1)).minute / 60.0) %}
+    {% set dtemp = day_temp %}
+    {% set ntemp = night_temp %}
+    {% set temp_range = dtemp - ntemp %}
+    {% set coolest_hour = circadian_hour_value | int %}
+    {% if coolest_hour == 0 %}
+      {% set coolest_hour = 0 %}
+    {% endif %}
+
+    {# Create smooth curve: coolest at the selected AM hour, warmest 12 hours later #}
+    {% set phase = (hour - coolest_hour) * 15 %}  {# Convert to degrees (24h = 360°) #}
+    {% set curve = (1 - cos(phase | float * 3.14159 / 180)) / 2 %} {# Inverted curve #}
+    {% set dynamic_temp = ntemp + (temp_range * curve) %}
+
+    {{ dynamic_temp | round(1) }}
+
+  # New variable for projected room temperature one hour from now
+  projected_room_plus1h: >
+    {# Simple projection: assume room will drift by ±0.2 °C depending on natural_trend #}
+    {% if natural_trend == 'warming' %}
+      {{ (current_target_temp + 0.2)|round(1) }}
+    {% elif natural_trend == 'cooling' %}
+      {{ (current_target_temp - 0.2)|round(1) }}
+    {% else %}
+      {{ current_target_temp }}
+    {% endif %}
+
+  aggregated_desired_plus1h: "{{ (desired_temp_plus1h|float + weather_effect|float)|round(1) }}"
+  delta_desired_1h: "{{ (aggregated_desired_plus1h|float - aggregated_desired_temp|float)|round(1) }}"
+
+  future_delta: "{{ (projected_room_plus1h|float - aggregated_desired_plus1h|float)|round(1) }}"
