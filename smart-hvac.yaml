@@ -1,7 +1,7 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: |
-    **Version: 1.9.0**
+    **Version: 1.10.0**
 
     Smart single-zone thermostat brain for Home Assistant.
 
