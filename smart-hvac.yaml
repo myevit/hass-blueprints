@@ -301,6 +301,14 @@ blueprint:
             - "auto"
       default: "low"
 
+    # --- MODE SWITCHING CONTROL ---
+    allow_mode_switch:
+      name: Allow Automatic Mode Switching
+      description: Enable to let the automation flip between *heat* and *cool* modes when the thermostat is currently in a single-setpoint mode. No changes are made when the thermostat is set to *heat_cool*.
+      selector:
+        boolean:
+      default: false
+
 alias: Smart Thermostat - Auto Mode Switching
 description: >-
   Single temperature control with automatic heating/cooling mode switching based
@@ -679,7 +687,7 @@ actions:
 
           # Switches the HVAC mode if the calculated 'needed_mode' is different from the current mode.
           - choose:
-              - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
+              - conditions: "{{ allow_mode_switch_input and thermostat_mode != 'heat_cool' and needed_mode != thermostat_mode and needed_mode in ['heat','cool'] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
@@ -779,7 +787,7 @@ actions:
 
       # Switches HVAC mode if necessary
       - choose:
-          - conditions: "{{ needed_mode != thermostat_mode and needed_mode in ['heat', 'cool', 'heat_cool'] }}"
+          - conditions: "{{ allow_mode_switch_input and thermostat_mode != 'heat_cool' and needed_mode != thermostat_mode and needed_mode in ['heat','cool'] }}"
             sequence:
               - service: climate.set_hvac_mode
                 target:
@@ -1046,3 +1054,5 @@ variables:
     {% else %}
       ""
     {% endif %}
+
+  allow_mode_switch_input: !input allow_mode_switch
