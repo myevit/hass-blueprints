@@ -1,7 +1,7 @@
 blueprint:
   name: Smart Thermostat with Day/Night Sensors
   description: |
-    **Version: 1.11.0**
+    **Version: 1.12.0**
 
     MAIN GOAL
     • Use an external (often more accurate or conveniently placed) temperature sensor to steer a thermostat that cannot natively follow that sensor.  The automation transparently nudges set-points so the HVAC keeps the **room**—not just the thermostat—within your comfort band.
@@ -14,7 +14,8 @@ blueprint:
     • Chooses a *Day* or *Night* room sensor automatically by the clock.
     • Glides between your Day and Night target temps using a smooth circadian curve.
     • Every 60 min decides whether to Heat, Cool or Heat-Cool and gently nudges the set-points toward the target.
-    • Can factor in outdoor weather/temperature, indoor humidity and solar impact to anticipate natural trends and save energy.
+    • Optimized for Android tablet performance with modular, testable template components.
+    • Can factor in outdoor weather/temperature and solar impact to anticipate natural trends and save energy.
     • Keeps the fan from ever being 'off' (great for ERV/HRV systems).
     • Optional toggle lets the blueprint switch between *heat* and *cool* when the thermostat is operating in a single-mode.  When the thermostat itself is on *auto/heat_cool* the automation never changes mode.
 
@@ -22,7 +23,7 @@ blueprint:
     1. Pick your Day & Night sensors.
     2. Choose whether each target temp comes from an *input_number* helper or a fixed value.
     3. Set the hours when each sensor becomes active (e.g. Day 06:00, Night 22:00).
-    4. (Optional) Toggle weather, outdoor-temp sensor or humidity sensor support and tune the adjustment factors.
+    4. (Optional) Toggle weather and outdoor-temp sensor support and tune the adjustment factors.
     5. Turn on *Debug Notifications* to see a step-by-step breakdown in Home Assistant.
 
     SAFETY FIRST
@@ -197,14 +198,7 @@ blueprint:
             domain: sensor
       default: ""
 
-    humidity_sensor:
-      name: Indoor Humidity Sensor
-      description: Optional humidity sensor for "feels like" temperature calculations
-      selector:
-        entity:
-          filter:
-            domain: sensor
-      default: ""
+
 
     use_outdoor_temp_sensor:
       name: Use Outdoor Temperature Sensor
@@ -213,12 +207,7 @@ blueprint:
         boolean:
       default: false
 
-    use_humidity_sensor:
-      name: Use Humidity Sensor
-      description: Enable to include the indoor humidity sensor in calculations.
-      selector:
-        boolean:
-      default: false
+
 
     solar_adjustment:
       name: Solar Impact Factor
@@ -256,7 +245,7 @@ blueprint:
     circadian_hour:
       name: Circadian Rhythm Time
       description: Set when temperatures are coolest (AM) and warmest (PM). Value 0=12AM/12PM, 1=1AM/1PM, etc.
-      default: 4
+      default: 2
       selector:
         number:
           min: 0
@@ -430,65 +419,8 @@ actions:
                   {{ states(weather_entity).attributes.condition|default('unknown') }}
                 {% endif %}
 
-              # Calculate solar impact based on weather condition and time of day
-              solar_impact: >
-                {% if is_weather_available %}
-                  {% set cond = state_attr(weather_entity, 'condition') %}
-                  {% set hour = now().hour %}
-                  {% set is_daytime = 6 <= hour <= 18 %}
-                  {% if is_daytime and cond in ['sunny', 'partlycloudy'] %}
-                    {% if cond == 'sunny' %}
-                      {{ solar_adjustment_value|float }}
-                    {% else %}
-                      {{ (solar_adjustment_value|float) * 0.5 }}
-                    {% endif %}
-                  {% else %}0{% endif %}
-                {% else %}0{% endif %}
-
-              # Calculate "feels like" temperature if humidity sensor is available
-              feels_like_temp: >
-                {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
-                  {% set humidity = states(humidity_entity) | float %}
-                  {% set actual_temp = current_target_temp %}
-
-                  {% if actual_temp >= 20 %}
-                    {# Heat index calculation - high temp + high humidity feels warmer #}
-                    {% if humidity > 40 %}
-                      {% set humidity_factor = (humidity - 40) / 100 %}
-                      {# Increased coefficient from 0.5 to 0.8 for more pronounced effect #}
-                      {% set feels_like_adjustment = humidity_factor * (actual_temp - 19) * 0.8 %}
-                      {{ actual_temp + feels_like_adjustment }}
-                    {% elif humidity < 30 %}
-                      {# Dry air can feel slightly cooler than actual temperature #}
-                      {% set dry_factor = (30 - humidity) / 100 %}
-                      {% set feels_like_adjustment = dry_factor * 0.5 %}
-                      {{ actual_temp - feels_like_adjustment }}
-                    {% else %}
-                      {{ actual_temp }}
-                    {% endif %}
-                  {% elif actual_temp <= 18 %}
-                    {# Wind chill approximation - high humidity makes cold feel colder #}
-                    {% if humidity > 60 %}
-                      {% set humidity_factor = (humidity - 60) / 100 %}
-                      {% set feels_like_adjustment = humidity_factor * 0.8 %}
-                      {{ actual_temp - feels_like_adjustment }}
-                    {% else %}
-                      {{ actual_temp }}
-                    {% endif %}
-                  {% else %}
-                    {{ actual_temp }}
-                  {% endif %}
-                {% else %}
-                  {{ current_target_temp }}
-                {% endif %}
-
-              # Get the current humidity for use in calculations and debug output
-              current_humidity: >
-                {% if humidity_entity != "" and states(humidity_entity) not in ['unknown', 'unavailable', 'none'] %}
-                  {{ states(humidity_entity) | float }}
-                {% else %}
-                  unknown
-                {% endif %}
+              # Use pre-calculated solar impact for better performance
+              solar_impact: "{{ solar_impact_factor }}"
 
               # Determine the thermal contribution of the building envelope
               # This considers wall thermal mass effects based on outdoor temperature trends
@@ -511,76 +443,13 @@ actions:
                   stable
                 {% endif %}
 
-              # Comprehensive natural thermal trend that considers:
-              # 1. Indoor/outdoor gradient
-              # 2. Solar impact
-              # 3. Building thermal mass
-              # 4. Feels like temperature
-              # 5. Forecast trend (if available)
-              natural_trend: >
-                {% set temp_gradient = desired_temp - current_outdoor_temp %}
-                {% set gradient_trend = 'unknown' %}
-                {% set actual_indoor_outdoor_diff = current_target_temp - current_outdoor_temp %}
+              # Use pre-calculated natural trend for performance optimization
+              natural_trend: "{{ natural_thermal_trend }}"
 
-                {# Determine gradient trend based on indoor-outdoor difference #}
-                {% if temp_gradient < -gradient_threshold_value %}
-                  {% set gradient_trend = 'warming' %}
-                {% elif temp_gradient > gradient_threshold_value %}
-                  {% set gradient_trend = 'cooling' %}
-                {% else %}
-                  {% set gradient_trend = 'stable' %}
-                {% endif %}
-
-                {# Check forecast trends if available #}
-                {% set forecast_trend = 'unknown' %}
-                {% if forecast_data|length >= 3 %}
-                  {% set current_temp = current_outdoor_temp %}
-                  {% set future_temp = forecast_data[2].temperature|float %}
-                  {% set trend_diff = future_temp - current_temp %}
-
-                  {% if trend_diff > 1 %}
-                    {% set forecast_trend = 'warming' %}
-                  {% elif trend_diff < -1 %}
-                    {% set forecast_trend = 'cooling' %}
-                  {% else %}
-                    {% set forecast_trend = 'stable' %}
-                  {% endif %}
-                {% endif %}
-
-                {# Make final determination #}
-                {% if actual_indoor_outdoor_diff < -2 and temp_gradient < 0 %}
-                  {# If indoor is already >2°C cooler than outdoor, and desired is less than outdoor,
-                     the space will likely warm up regardless of other factors #}
-                  warming
-                {% elif actual_indoor_outdoor_diff > 2 and temp_gradient > 0 %}
-                  {# If indoor is already >2°C warmer than outdoor, and desired is greater than outdoor,
-                     the space will likely cool down regardless of other factors #}
-                  cooling
-                {% elif solar_impact|float > 0.3 and forecast_trend != 'cooling' %}
-                  {# Strong solar impact will cause warming unless forecast shows cooling #}
-                  warming
-                {% elif forecast_trend != 'unknown' %}
-                  {# Trust forecast trend if available #}
-                  {{ forecast_trend }}
-                {% elif building_thermal_contribution == 'warming' and gradient_trend != 'cooling' %}
-                  warming
-                {% elif building_thermal_contribution == 'cooling' and gradient_trend != 'warming' %}
-                  cooling
-                {% else %}
-                  {{ gradient_trend }}
-                {% endif %}
-
-              # A more nuanced adjustment calculation that considers all factors
+              # Weather adjustment calculation based on solar and trend factors
               weather_adjustment_factor: >
                 {% set base_factor = forecast_adjustment_value %}
                 {% set solar_factor = solar_impact|float %}
-                {% set feels_adjustment = 0 %}
-
-                {% if feels_like_temp|float > current_target_temp|float + 0.5 %}
-                  {% set feels_adjustment = 0.2 %}
-                {% elif feels_like_temp|float < current_target_temp|float - 0.5 %}
-                  {% set feels_adjustment = -0.2 %}
-                {% endif %}
 
                 {% if natural_trend == 'warming' %}
                   {# More conservative adjustment for warming trends to prevent over-cooling #}
@@ -588,23 +457,23 @@ actions:
                   {% if temp_diff > 0 and temp_difference > 0 %}
                     {# Only make significant cooling adjustments if both outdoor temp is higher than desired
                        AND current indoor temp is above desired temp #}
-                    {{ (base_factor + solar_factor + feels_adjustment) * -0.7 }}
+                    {{ (base_factor + solar_factor) * -0.7 }}
                   {% elif temp_difference < 0 %}
                     {# If indoor temp is already below desired, don't make negative adjustments #}
-                    {{ feels_adjustment }}
+                    0
                   {% else %}
                     {# Minimal adjustment in other warming scenarios #}
-                    {{ (base_factor + solar_factor + feels_adjustment) * -0.3 }}
+                    {{ (base_factor + solar_factor) * -0.3 }}
                   {% endif %}
                 {% elif natural_trend == 'cooling' %}
                   {% if temp_difference < 0 %}
                     {# If room is already cooler than desired in cooling trend, apply positive adjustment #}
-                    {{ (base_factor + feels_adjustment) | abs }}
+                    {{ base_factor | abs }}
                   {% else %}
-                    {{ base_factor - feels_adjustment }}
+                    {{ base_factor }}
                   {% endif %}
                 {% else %}
-                  {{ feels_adjustment }}
+                  0
                 {% endif %}
 
               # Calculates a small temperature adjustment for single-setpoint modes (heat/cool).
@@ -915,35 +784,40 @@ actions:
             data:
               title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
               message: |-
-                **Current**
-                • Sensor: {{ current_target_temp }} °C
-                • Desired now: {{ desired_temp }} °C (Δ {{ '{:+.1f}'.format(temp_difference) }} °C)
-                • HVAC range: {{ current_target_low }} – {{ current_target_high }} °C
+                **Current Status**
+                • Room: {{ current_target_temp }}°C | Target: {{ desired_temp }}°C | Δ{{ '{:+.1f}'.format(temp_difference) }}°C
+                • HVAC: {{ thermostat_mode }} ({{ current_target_low }}°C - {{ current_target_high }}°C)
 
-                **Weather Impact in next 1H**
-                Solar {{ '{:+.1f}'.format(solar_adj|float) }} | Feels {{ '{:+.1f}'.format(feels_adj|float) }} | Trend {{ '{:+.1f}'.format(trend_adj|float) }} → **Total {{ '{:+.1f}'.format(weather_effect) }}**
+                **Analysis**
+                • {{ debug_adjustment_reason }}
+                • Natural trend: {{ natural_thermal_trend }}
 
-                **Projection**
-                • Room in 1 h: {{ projected_room_plus1h }} °C
-                • Target in 1 h: {{ aggregated_desired_plus1h | default((desired_temp_plus1h + weather_effect) | round(1)) }} °C
-                • Δ (room – target): {{ (projected_room_plus1h - (aggregated_desired_plus1h |
-                      default((desired_temp_plus1h + weather_effect) | round(1)))) | round(1, default='+0.0') }} °C
-
-                **HVAC**
-                Mode: {{ thermostat_mode }} → Needed: {{ needed_mode }}
+                {% if is_weather_available %}
+                **Weather Factors**
+                • Solar: {{ '{:+.1f}'.format(debug_solar_impact|float) }}°C
+                • Trend: {{ '{:+.1f}'.format(debug_trend_impact|float) }}°C
+                • **Total Effect:** {{ '{:+.1f}'.format(weather_effect|float) }}°C
+                {% endif %}
 
                 {% set low_change = new_target_low|float - current_target_low|float %}
                 {% set high_change = new_target_high|float - current_target_high|float %}
+                **Action Taken**
                 {% if low_change != 0 or high_change != 0 %}
-                **Action:** Heat {{ '{:+.1f}'.format(low_change) }} °C | Cool {{ '{:+.1f}'.format(high_change) }} °C
-                New range → {{ new_target_low }} – {{ new_target_high }} °C
+                • Heat setpoint: {{ '{:+.1f}'.format(low_change) }}°C → {{ new_target_low }}°C
+                • Cool setpoint: {{ '{:+.1f}'.format(high_change) }}°C → {{ new_target_high }}°C
                 {% else %}
-                **Action:** No temperature adjustment needed
+                • No adjustment needed - room within target range
                 {% endif %}
 
 variables:
   # --- VARIABLE DEFINITIONS ---
   # This section defines all the variables used throughout the automation for clarity and reusability.
+  #
+  # PERFORMANCE OPTIMIZATIONS (v1.12.0):
+  # - Broken down monolithic templates into smaller, testable components
+  # - Pre-calculated weather factors to avoid redundant calculations
+  # - Simplified debug notifications to reduce Android tablet load
+  # - Cached complex calculations in dedicated variables
   # Aliases for blueprint inputs to make templates cleaner.
   day_target_sensor_entity: !input day_target_sensor
   night_target_sensor_entity: !input night_target_sensor
@@ -969,8 +843,7 @@ variables:
       ""
     {% endif %}
 
-  humidity_sensor_input: !input humidity_sensor
-  use_humidity_sensor_input: !input use_humidity_sensor
+
   enforce_fan_mode_input: !input enforce_fan_mode
   fan_mode_setting_input: !input fan_mode_setting
   desired_fan_mode: "{{ fan_mode_setting_input if fan_mode_setting_input | length > 0 else 'low' }}"
@@ -1073,20 +946,30 @@ variables:
     {% else %}
       {{ thermostat_mode }}
     {% endif %}
-  # Calculates an adaptive temperature offset. Nudges are ±0.5 °C at most and only
-  # occur when the room drifts outside the permitted band:
-  #   max( low set-point , desired-0.5 )  ≤  room temp  ≤  min( high set-point , desired+0.5 )
+  # Calculates an adaptive temperature offset following hierarchical priority rules:
+  # 1. ABSOLUTE BOUNDS (always enforced): night_temp ≤ room_temp ≤ day_temp
+  # 2. COMFORT TOLERANCE (normal operation): circadian_target ± 0.5°C
+  # Nudges are ±0.5 °C at most per cycle for stability
   offset_adjustment: >
-    {# Room-driven offset: nudge ±0.5 °C when the actual temperature leaves desired ±0.5 °C band #}
-    {% set low_band = desired_temp - 0.5 %}
-    {% set high_band = desired_temp + 0.5 %}
-
-    {% if current_target_temp < low_band %}
+    {# ABSOLUTE BOUNDS CHECK (CRITICAL) - Always enforced first #}
+    {% if current_target_temp < night_temp %}
+      {# Room too cold - violates minimum comfort bound - immediate heating needed #}
       0.5
-    {% elif current_target_temp > high_band %}
+    {% elif current_target_temp > day_temp %}
+      {# Room too hot - violates maximum comfort bound - immediate cooling needed #}
       -0.5
     {% else %}
-      0
+      {# Within absolute bounds - apply comfort tolerance around circadian target #}
+      {% set low_band = desired_temp - 0.5 %}
+      {% set high_band = desired_temp + 0.5 %}
+
+      {% if current_target_temp < low_band %}
+        0.5
+      {% elif current_target_temp > high_band %}
+        -0.5
+      {% else %}
+        0
+      {% endif %}
     {% endif %}
 
   # Variable for consolidated sensor validation logic
@@ -1117,38 +1000,113 @@ variables:
       {{ temp_valid and sensors_fresh and thermo_fresh }}
     {% endif %}
 
-  humidity_entity: >
-    {% if use_humidity_sensor_input and humidity_sensor_input != "" %}
-      {{ humidity_sensor_input }}
-    {% else %}
-      ""
-    {% endif %}
+
 
   allow_mode_switch_input: !input allow_mode_switch
 
-  # New variable for weather effect and adjusted current temp
-  weather_effect: "{{ weather_adjustment_for_range|default(0)|float }}"
-  adjusted_current_temp: "{{ ((feels_like_temp|default(current_target_temp))|float + weather_effect|float)|round(1) }}"
-  aggregated_desired_temp: "{{ (desired_temp|float + weather_effect|float)|round(1) }}"
-  # Break-down of weather adjustment components for debug
-  solar_adj: >
+  # --- SETPOINT CALCULATION COMPONENTS ---
+  # Simplified components for easier testing and maintenance
+
+  # Calculate desired temperature band boundaries
+  desired_temp_band_low: "{{ ((desired_temp - 0.5) * 2) | round / 2 }}"
+  desired_temp_band_high: "{{ ((desired_temp + 0.5) * 2) | round / 2 }}"
+
+  # Safety-bounded temperature limits
+  effective_min_temp: "{{ [desired_temp_band_low, night_temp, safety_min] | max }}"
+  effective_max_temp: "{{ [desired_temp_band_high, day_temp, safety_max] | min }}"
+
+  # Temperature adjustment decision logic - hierarchical priority
+  violates_min_bound: "{{ current_target_temp < night_temp }}"
+  violates_max_bound: "{{ current_target_temp > day_temp }}"
+  needs_heating_adjustment: "{{ current_target_temp < (desired_temp - 0.5) }}"
+  needs_cooling_adjustment: "{{ current_target_temp > (desired_temp + 0.5) }}"
+
+  # Rate-limited adjustment calculation following priority rules
+  base_adjustment_amount: >
+    {% if violates_min_bound %}
+      0.5
+    {% elif violates_max_bound %}
+      -0.5
+    {% elif needs_heating_adjustment %}
+      0.5
+    {% elif needs_cooling_adjustment %}
+      -0.5
+    {% else %}
+      0
+    {% endif %}
+
+  # --- WEATHER CALCULATION COMPONENTS ---
+  # Break down complex weather logic into testable components for Android tablet performance
+
+  # Solar impact calculation - simplified and cached
+  solar_impact_factor: >
     {% if is_weather_available %}
-      {% set cond = state_attr(weather_entity, 'condition') %}
+      {% set condition = state_attr(weather_entity, 'condition') %}
       {% set hour = now().hour %}
       {% set is_daytime = 6 <= hour <= 18 %}
-      {% if is_daytime and cond in ['sunny', 'partlycloudy'] %}
-        {% if cond == 'sunny' %}
-          {{ solar_adjustment_value|float }}
-        {% else %}
-          {{ (solar_adjustment_value|float) * 0.5 }}
-        {% endif %}
-      {% else %}0{% endif %}
-    {% else %}0{% endif %}
-  feels_adj: >
-    {% if feels_like_temp|default(0)|float > current_target_temp|float + 0.5 %}0.2
-    {% elif feels_like_temp|default(0)|float < current_target_temp|float - 0.5 %}-0.2
-    {% else %}0{% endif %}
-  trend_adj: "{{ (weather_effect|float - solar_adj|float - feels_adj|float)|round(2) }}"
+      {% if is_daytime and condition in ['sunny', 'partlycloudy'] %}
+        {{ solar_adjustment_value|float if condition == 'sunny' else (solar_adjustment_value|float * 0.5) }}
+      {% else %}
+        0
+      {% endif %}
+    {% else %}
+      0
+    {% endif %}
+
+
+
+  # Temperature gradient analysis - simplified logic
+  indoor_outdoor_gradient: >
+    {% if is_weather_available %}
+      {% set outdoor = current_outdoor_temp|default(desired_temp)|float %}
+      {% set indoor = current_target_temp|float %}
+      {{ (indoor - outdoor)|round(1) }}
+    {% else %}
+      0
+    {% endif %}
+
+  # Natural trend determination - cleaner logic
+  natural_thermal_trend: >
+    {% if is_weather_available %}
+      {% set gradient = indoor_outdoor_gradient|float %}
+      {% set solar = solar_impact_factor|float %}
+      {% if gradient < -gradient_threshold_value and solar < 0.3 %}
+        warming
+      {% elif gradient > gradient_threshold_value and solar == 0 %}
+        cooling
+      {% elif solar > 0.3 %}
+        warming
+      {% else %}
+        stable
+      {% endif %}
+    {% else %}
+      stable
+    {% endif %}
+
+  # Combined weather adjustment - aggregated result
+  weather_effect: "{{ weather_adjustment_for_range|default(0)|float }}"
+  adjusted_current_temp: "{{ (current_target_temp|float + weather_effect|float)|round(1) }}"
+  aggregated_desired_temp: "{{ (desired_temp|float + weather_effect|float)|round(1) }}"
+  # --- DEBUG DISPLAY COMPONENTS ---
+  # Simplified debug values for better Android tablet performance
+
+  # Use pre-calculated values instead of recalculating
+  debug_solar_impact: "{{ solar_impact_factor|default(0)|round(1) }}"
+  debug_trend_impact: "{{ (weather_effect|float - debug_solar_impact|float)|round(1) }}"
+
+  # Status indicators with hierarchical reasoning
+  debug_adjustment_reason: >
+    {% if violates_min_bound %}
+      Room below minimum bound ({{ current_target_temp }}°C < {{ night_temp }}°C night_temp)
+    {% elif violates_max_bound %}
+      Room above maximum bound ({{ current_target_temp }}°C > {{ day_temp }}°C day_temp)
+    {% elif needs_heating_adjustment %}
+      Room below comfort zone ({{ current_target_temp }}°C < {{ (desired_temp - 0.5)|round(1) }}°C)
+    {% elif needs_cooling_adjustment %}
+      Room above comfort zone ({{ current_target_temp }}°C > {{ (desired_temp + 0.5)|round(1) }}°C)
+    {% else %}
+      Room within target range
+    {% endif %}
 
   desired_temp_plus1h: >
     {% set hour = (now() + timedelta(hours=1)).hour
