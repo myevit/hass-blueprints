@@ -60,6 +60,8 @@ variables:
   end_brightness: !input end_brightness
   update_interval: 10 # Update every 10 seconds
   total_updates: "{{ ((sunrise_duration | int) * 60 / update_interval) | int }}"
+  brightness_tolerance: 3
+  color_tolerance: 3
   color_steps: [
       [139, 0, 0], # Deep dark red
       [205, 16, 0], # Dark red
@@ -93,6 +95,35 @@ action:
         - condition: state
           entity_id: !input light_entity
           state: "on"
+        - variables:
+            previous_progress: "{{ (repeat.index - 1) / total_updates }}"
+            expected_brightness: >
+              {{ ((previous_progress ** 2) * (end_brightness - start_brightness) + start_brightness) * 2.55 | round(0) }}
+            expected_color_progress: "{{ previous_progress * (color_steps | length - 1) }}"
+            expected_color_index: "{{ expected_color_progress | int }}"
+            expected_rgb_color: >
+              {% set start = color_steps[expected_color_index] %}
+              {% set end = color_steps[expected_color_index + 1] %}
+              {% set fraction = expected_color_progress - expected_color_index %}
+              {{ [
+                (start[0] + (end[0] - start[0]) * fraction) | round,
+                (start[1] + (end[1] - start[1]) * fraction) | round,
+                (start[2] + (end[2] - start[2]) * fraction) | round
+              ] }}
+        - if:
+            - condition: template
+              value_template: >
+                {% set current_brightness = state_attr(light_entity, 'brightness') %}
+                {% set current_rgb = state_attr(light_entity, 'rgb_color') or [] %}
+                {% set brightness_changed = current_brightness is none
+                  or ((current_brightness | int) - (expected_brightness | int)) | abs > brightness_tolerance %}
+                {% set color_changed = (current_rgb | length < 3)
+                  or ((current_rgb[0] | int) - (expected_rgb_color[0] | int)) | abs > color_tolerance
+                  or ((current_rgb[1] | int) - (expected_rgb_color[1] | int)) | abs > color_tolerance
+                  or ((current_rgb[2] | int) - (expected_rgb_color[2] | int)) | abs > color_tolerance %}
+                {{ brightness_changed or color_changed }}
+          then:
+            - stop: "Light manually adjusted, aborting sunrise"
         - variables:
             progress: "{{ repeat.index / total_updates }}"
             current_brightness: >
