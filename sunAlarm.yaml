@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.7.1"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.7.2"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
     Uses a scheduler helper to control when the sunrise effect starts.
@@ -60,8 +60,8 @@ variables:
   end_brightness: !input end_brightness
   update_interval: 10 # Update every 10 seconds
   total_updates: "{{ ((sunrise_duration | int) * 60 / update_interval) | int }}"
-  brightness_tolerance: 3
-  color_tolerance: 3
+  brightness_tolerance: 5
+  color_tolerance: 10
   color_steps: [
       [139, 0, 0], # Deep dark red
       [205, 16, 0], # Dark red
@@ -113,30 +113,16 @@ action:
         - if:
             - condition: template
               value_template: >
-                {% set current_state = states[light_entity] %}
-                {% set current_context = current_state.context if current_state is not none else none %}
-                {% set automation_context = this.context if this.context is not none else none %}
                 {% set current_brightness = state_attr(light_entity, 'brightness') %}
-                {% set supported = state_attr(light_entity, 'supported_color_modes') or [] %}
-                {% set color_mode = state_attr(light_entity, 'color_mode') %}
-                {% set supports_rgb = 'rgb' in supported
-                  or 'hs' in supported
-                  or 'xy' in supported
-                  or color_mode in ['rgb', 'hs', 'xy'] %}
                 {% set current_rgb = state_attr(light_entity, 'rgb_color') or [] %}
-                {% set user_override = current_context is not none
-                  and automation_context is not none
-                  and current_context.id != automation_context.id
-                  and current_context.user_id is not none %}
-                {% set brightness_changed = current_brightness is not none
+                {% set brightness_drift = current_brightness is not none
                   and ((current_brightness | int) - (expected_brightness | int)) | abs > brightness_tolerance %}
-                {% set color_check = supports_rgb and (current_rgb | length >= 3) %}
-                {% set color_changed = color_check and (
+                {% set color_drift = (current_rgb | length >= 3) and (
                   ((current_rgb[0] | int) - (expected_rgb_color[0] | int)) | abs > color_tolerance
                   or ((current_rgb[1] | int) - (expected_rgb_color[1] | int)) | abs > color_tolerance
                   or ((current_rgb[2] | int) - (expected_rgb_color[2] | int)) | abs > color_tolerance
                 ) %}
-                {{ user_override or brightness_changed or color_changed }}
+                {{ brightness_drift or color_drift }}
           then:
             - stop: "Light manually adjusted, aborting sunrise"
         - variables:
