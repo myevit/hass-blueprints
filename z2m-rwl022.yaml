@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.6.0"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.5.9"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -47,49 +47,137 @@ blueprint:
           multiple: true
           options:
             - label: Static Rest
-              value: static_rest
+              value: >
+                {
+                  "preset_id": "e03267e7-9914-4f47-97fe-63c0bd317fe7",
+                  "type": "static"
+                }
             - label: Static Relax
-              value: static_relax
+              value: >
+                {
+                  "preset_id": "e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8",
+                  "type": "static"
+                }
             - label: Static Read
-              value: static_read
+              value: >
+                {
+                  "preset_id": "035b6ecf-414e-4781-abc7-3911556097cb",
+                  "type": "static"
+                }
             - label: Static Concentrate
-              value: static_concentrate
+              value: >
+                {
+                  "preset_id": "0cbec4e8-d064-4457-986a-fe6078a63f39",
+                  "type": "static"
+                }
             - label: Static Bright
-              value: static_bright
+              value: >
+                {
+                  "preset_id": "6d10a807-7330-46d1-b093-c15520ba72c0",
+                  "type": "static"
+                }
             - label: Static Dimmed
-              value: static_dimmed
+              value: >
+                {
+                  "preset_id": "8f55e62a-e5f8-456a-9e8b-61f314bd4e99",
+                  "type": "static"
+                }
             - label: Dynamic Galaxy
-              value: dynamic_galaxy
+              value: >
+                {
+                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
+                  "type": "dynamic"
+                }
             - label: Dynamic Nighttime
-              value: dynamic_nighttime
+              value: >
+                {
+                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
+                  "type": "dynamic"
+                }
             - label: Dynamic Sleepy
-              value: dynamic_sleepy
+              value: >
+                {
+                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
+                  "type": "dynamic"
+                }
             - label: Dynamic Unwind
-              value: dynamic_unwind
+              value: >
+                {
+                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
+                  "type": "dynamic"
+                }
             - label: Dynamic Storybook
-              value: dynamic_storybook
+              value: >
+                {
+                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
+                  "type": "dynamic"
+                }
             - label: Dynamic Shine
-              value: dynamic_shine
+              value: >
+                {
+                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
+                  "type": "dynamic"
+                }
             - label: Dynamic Arise
-              value: dynamic_arise
+              value: >
+                {
+                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
+                  "type": "dynamic"
+                }
             - label: Static Galaxy
-              value: static_galaxy
+              value: >
+                {
+                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
+                  "type": "static"
+                }
             - label: Static Nighttime
-              value: static_nighttime
+              value: >
+                {
+                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
+                  "type": "static"
+                }
             - label: Static Sleepy
-              value: static_sleepy
+              value: >
+                {
+                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
+                  "type": "static"
+                }
             - label: Static Unwind
-              value: static_unwind
+              value: >
+                {
+                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
+                  "type": "static"
+                }
             - label: Static Storybook
-              value: static_storybook
+              value: >
+                {
+                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
+                  "type": "static"
+                }
             - label: Static Shine
-              value: static_shine
+              value: >
+                {
+                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
+                  "type": "static"
+                }
             - label: Static Arise
-              value: static_arise
+              value: >
+                {
+                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
+                  "type": "static"
+                }
             - label: Static Aurora
-              value: static_aurora
+              value: >
+                {
+                  "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
+                  "type": "static"
+                }
             - label: Dynamic Aurora
-              value: dynamic_aurora
+              value: >
+                {
+                  "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
+                  "type": "dynamic"
+                }
     dynamic_transition:
       name: Dynamic Transition
       description: Transition time between changes of the dynamic colour states
@@ -259,73 +347,6 @@ trigger:
 variables:
   command: "{{ trigger.id }}"
   included_scenes: !input included_scenes
-  presets:
-    static_rest:
-      preset_id: e03267e7-9914-4f47-97fe-63c0bd317fe7
-      type: static
-    static_relax:
-      preset_id: e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8
-      type: static
-    static_read:
-      preset_id: 035b6ecf-414e-4781-abc7-3911556097cb
-      type: static
-    static_concentrate:
-      preset_id: 0cbec4e8-d064-4457-986a-fe6078a63f39
-      type: static
-    static_bright:
-      preset_id: 6d10a807-7330-46d1-b093-c15520ba72c0
-      type: static
-    static_dimmed:
-      preset_id: 8f55e62a-e5f8-456a-9e8b-61f314bd4e99
-      type: static
-    dynamic_galaxy:
-      preset_id: a6ba3a6e-1e3a-41fd-84f2-f7b021935deb
-      type: dynamic
-    dynamic_nighttime:
-      preset_id: cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9
-      type: dynamic
-    dynamic_sleepy:
-      preset_id: 6170702c-f2fc-46fc-99ef-ac98b6c1293e
-      type: dynamic
-    dynamic_unwind:
-      preset_id: f7c2f4ce-f957-4745-b9bf-651d5b81c9a6
-      type: dynamic
-    dynamic_storybook:
-      preset_id: 4f76cd74-28db-455b-9c11-04654be86281
-      type: dynamic
-    dynamic_shine:
-      preset_id: ded92eba-901e-4675-8a77-2d17d95aac54
-      type: dynamic
-    dynamic_arise:
-      preset_id: d7225176-5cb9-47f3-ab99-8ca9908866fc
-      type: dynamic
-    static_galaxy:
-      preset_id: a6ba3a6e-1e3a-41fd-84f2-f7b021935deb
-      type: static
-    static_nighttime:
-      preset_id: cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9
-      type: static
-    static_sleepy:
-      preset_id: 6170702c-f2fc-46fc-99ef-ac98b6c1293e
-      type: static
-    static_unwind:
-      preset_id: f7c2f4ce-f957-4745-b9bf-651d5b81c9a6
-      type: static
-    static_storybook:
-      preset_id: 4f76cd74-28db-455b-9c11-04654be86281
-      type: static
-    static_shine:
-      preset_id: ded92eba-901e-4675-8a77-2d17d95aac54
-      type: static
-    static_arise:
-      preset_id: d7225176-5cb9-47f3-ab99-8ca9908866fc
-      type: static
-    static_aurora:
-      preset_id: 940fd864-51e1-4761-95d3-75d4d68835ea
-      type: static
-    dynamic_aurora:
-      preset_id: 940fd864-51e1-4761-95d3-75d4d68835ea
-      type: dynamic
   scene_helper: !input scene_helper
   reset_after: !input reset_after
   tv_entity: !input tv_entity
@@ -385,9 +406,7 @@ variables:
     {% else %}
       0
     {% endif %}
-  current_scene_info: "{{ presets.get(included_scenes[last_preset_index], {}) }}"
-  first_scene_info: "{{ presets.get(included_scenes[0], {}) }}"
-  next_scene_info: "{{ presets.get(included_scenes[next_preset_index], {}) }}"
+  current_scene_info: "{{ included_scenes[last_preset_index] | from_json }}"
   next_preset_index: >-
     {% if command == 'off_press' %}
       {{ (last_preset_index + 1) % (included_scenes | length) }}
@@ -447,20 +466,20 @@ action:
                       targets:
                         entity_id: "{{ target_lights }}"
                   - choose:
-                      - conditions: "{{ first_scene_info.type == 'static' or first_scene_info.type == '' }}"
+                      - conditions: "{{ (included_scenes[0] | from_json).type == 'static' or (included_scenes[0] | from_json).type == '' }}"
                         sequence:
                           - action: scene_presets.apply_preset
                             data:
-                              preset_id: "{{ first_scene_info.preset_id }}"
+                              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                               targets:
                                 entity_id: "{{ target_lights }}"
                               shuffle: false
                               smart_shuffle: false
-                      - conditions: "{{ first_scene_info.type == 'dynamic' }}"
+                      - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
                         sequence:
                           - action: scene_presets.start_dynamic_scene
                             data:
-                              preset_id: "{{ first_scene_info.preset_id }}"
+                              preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                               targets:
                                 entity_id: "{{ target_lights }}"
                               transition: !input dynamic_transition
@@ -484,20 +503,20 @@ action:
               targets:
                 entity_id: "{{ target_lights }}"
           - choose:
-              - conditions: "{{ first_scene_info.type == 'static' or first_scene_info.type == '' }}"
+              - conditions: "{{ (included_scenes[0] | from_json).type == 'static' or (included_scenes[0] | from_json).type == '' }}"
                 sequence:
                   - action: scene_presets.apply_preset
                     data:
-                      preset_id: "{{ first_scene_info.preset_id }}"
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
-              - conditions: "{{ first_scene_info.type == 'dynamic' }}"
+              - conditions: "{{ (included_scenes[0] | from_json).type == 'dynamic' }}"
                 sequence:
                   - action: scene_presets.start_dynamic_scene
                     data:
-                      preset_id: "{{ first_scene_info.preset_id }}"
+                      preset_id: "{{ (included_scenes[0] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
@@ -547,20 +566,20 @@ action:
               targets:
                 entity_id: "{{ target_lights }}"
           - choose:
-              - conditions: "{{ next_scene_info.type == 'static' }}"
+              - conditions: "{{ (included_scenes[next_preset_index] | from_json).type == 'static' }}"
                 sequence:
                   - action: scene_presets.apply_preset
                     data:
-                      preset_id: "{{ next_scene_info.preset_id }}"
+                      preset_id: "{{ (included_scenes[next_preset_index] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       shuffle: false
                       smart_shuffle: false
-              - conditions: "{{ next_scene_info.type == 'dynamic' }}"
+              - conditions: "{{ (included_scenes[next_preset_index] | from_json).type == 'dynamic' }}"
                 sequence:
                   - action: scene_presets.start_dynamic_scene
                     data:
-                      preset_id: "{{ next_scene_info.preset_id }}"
+                      preset_id: "{{ (included_scenes[next_preset_index] | from_json).preset_id }}"
                       targets:
                         entity_id: "{{ target_lights }}"
                       transition: !input dynamic_transition
