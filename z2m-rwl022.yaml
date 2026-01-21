@@ -166,12 +166,12 @@ blueprint:
                   "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
                   "type": "static"
                 }
-              - label: Static Aurora
-              value: >
-                {
-                  "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
-                  "type": "static"
-                }
+            - label: Static Aurora
+            value: >
+              {
+                "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
+                "type": "static"
+              }
             - label: Dynamic Aurora
               value: >
                 {
