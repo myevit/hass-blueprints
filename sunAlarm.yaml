@@ -1,11 +1,11 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.6.2"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.7.3"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
     Uses a scheduler helper to control when the sunrise effect starts.
   domain: automation
   homeassistant:
-    min_version: "2023.1.0"
+    min_version: "2025.4.0"
   input:
     scheduler_helper:
       name: Scheduler Helper
@@ -69,6 +69,7 @@ variables:
       [255, 223, 150], # Very warm white/golden
     ]
   keep_on_duration: !input keep_on_duration
+  last_expected_brightness: null
 
 trigger:
   - platform: state
@@ -99,12 +100,7 @@ action:
               {{ ((progress ** 2) * (end_brightness - start_brightness) + start_brightness) * 2.55 | round(0) }}
             color_progress: "{{ progress * (color_steps | length - 1) }}"
             color_index: "{{ color_progress | int }}"
-        - action: light.turn_on
-          target:
-            entity_id: !input light_entity
-          data:
-            brightness: "{{ current_brightness }}"
-            rgb_color: >
+            current_rgb: >
               {% set start = color_steps[color_index] %}
               {% set end = color_steps[color_index + 1] %}
               {% set fraction = color_progress - color_index %}
@@ -113,7 +109,44 @@ action:
                 (start[1] + (end[1] - start[1]) * fraction) | round,
                 (start[2] + (end[2] - start[2]) * fraction) | round
               ] }}
+        - if:
+            - condition: template
+              value_template: "{{ not repeat.first and last_expected_brightness is not none }}"
+          then:
+            - variables:
+                drifted: >
+                  {% set actual_brightness = state_attr(light_entity, 'brightness') %}
+                  {% if actual_brightness is none %}
+                    {% set brightness_drift = false %}
+                  {% else %}
+                    {% set brightness_tolerance =
+                      (current_brightness - last_expected_brightness) | abs %}
+                    {% set brightness_tolerance = [brightness_tolerance, 1] | max %}
+                    {% set brightness_drift =
+                      (actual_brightness | int - last_expected_brightness) | abs > brightness_tolerance %}
+                  {% endif %}
+                  {{ brightness_drift }}
+            - if:
+                - condition: template
+                  value_template: "{{ drifted }}"
+              then:
+                - action: system_log.write
+                  data:
+                    level: warning
+                    message: >
+                      Sunrise drift detected. actual_brightness={{ state_attr(light_entity, 'brightness') }},
+                      expected_brightness={{ last_expected_brightness }},
+                      step={{ repeat.index }}.
+                - stop: "Light changed externally, aborting sunrise"
+        - action: light.turn_on
+          target:
+            entity_id: !input light_entity
+          data:
+            brightness: "{{ current_brightness }}"
+            rgb_color: "{{ current_rgb }}"
             transition: "{{ update_interval }}"
+        - variables:
+            last_expected_brightness: "{{ current_brightness | int }}"
         - delay:
             seconds: "{{ update_interval }}"
         - if:
