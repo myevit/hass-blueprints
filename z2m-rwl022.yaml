@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.5.9"
+  name: "MQTT Philips Hue Dimmer RWL022 (Scene Preset Integration). v3.6.3"
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -47,137 +47,49 @@ blueprint:
           multiple: true
           options:
             - label: Static Rest
-              value: >
-                {
-                  "preset_id": "e03267e7-9914-4f47-97fe-63c0bd317fe7",
-                  "type": "static"
-                }
+              value: "Static Rest"
             - label: Static Relax
-              value: >
-                {
-                  "preset_id": "e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8",
-                  "type": "static"
-                }
+              value: "Static Relax"
             - label: Static Read
-              value: >
-                {
-                  "preset_id": "035b6ecf-414e-4781-abc7-3911556097cb",
-                  "type": "static"
-                }
+              value: "Static Read"
             - label: Static Concentrate
-              value: >
-                {
-                  "preset_id": "0cbec4e8-d064-4457-986a-fe6078a63f39",
-                  "type": "static"
-                }
+              value: "Static Concentrate"
             - label: Static Bright
-              value: >
-                {
-                  "preset_id": "6d10a807-7330-46d1-b093-c15520ba72c0",
-                  "type": "static"
-                }
+              value: "Static Bright"
             - label: Static Dimmed
-              value: >
-                {
-                  "preset_id": "8f55e62a-e5f8-456a-9e8b-61f314bd4e99",
-                  "type": "static"
-                }
+              value: "Static Dimmed"
             - label: Dynamic Galaxy
-              value: >
-                {
-                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Galaxy"
             - label: Dynamic Nighttime
-              value: >
-                {
-                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Nighttime"
             - label: Dynamic Sleepy
-              value: >
-                {
-                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Sleepy"
             - label: Dynamic Unwind
-              value: >
-                {
-                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Unwind"
             - label: Dynamic Storybook
-              value: >
-                {
-                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Storybook"
             - label: Dynamic Shine
-              value: >
-                {
-                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Shine"
             - label: Dynamic Arise
-              value: >
-                {
-                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Arise"
             - label: Static Galaxy
-              value: >
-                {
-                  "preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb",
-                  "type": "static"
-                }
+              value: "Static Galaxy"
             - label: Static Nighttime
-              value: >
-                {
-                  "preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9",
-                  "type": "static"
-                }
+              value: "Static Nighttime"
             - label: Static Sleepy
-              value: >
-                {
-                  "preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e",
-                  "type": "static"
-                }
+              value: "Static Sleepy"
             - label: Static Unwind
-              value: >
-                {
-                  "preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6",
-                  "type": "static"
-                }
+              value: "Static Unwind"
             - label: Static Storybook
-              value: >
-                {
-                  "preset_id": "4f76cd74-28db-455b-9c11-04654be86281",
-                  "type": "static"
-                }
+              value: "Static Storybook"
             - label: Static Shine
-              value: >
-                {
-                  "preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54",
-                  "type": "static"
-                }
+              value: "Static Shine"
             - label: Static Arise
-              value: >
-                {
-                  "preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc",
-                  "type": "static"
-                }
+              value: "Static Arise"
             - label: Static Aurora
-              value: >
-                {
-                  "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
-                  "type": "static"
-                }
+              value: "Static Aurora"
             - label: Dynamic Aurora
-              value: >
-                {
-                  "preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea",
-                  "type": "dynamic"
-                }
+              value: "Dynamic Aurora"
     dynamic_transition:
       name: Dynamic Transition
       description: Transition time between changes of the dynamic colour states
@@ -346,7 +258,45 @@ trigger:
     id: down_hold
 variables:
   command: "{{ trigger.id }}"
-  included_scenes: !input included_scenes
+  included_scene_labels: !input included_scenes
+  preset_map:
+    "Static Rest": {"preset_id": "e03267e7-9914-4f47-97fe-63c0bd317fe7", "type": "static"}
+    "Static Relax": {"preset_id": "e71b2ef3-1b15-4c4b-b036-4b3d6efe58f8", "type": "static"}
+    "Static Read": {"preset_id": "035b6ecf-414e-4781-abc7-3911556097cb", "type": "static"}
+    "Static Concentrate": {"preset_id": "0cbec4e8-d064-4457-986a-fe6078a63f39", "type": "static"}
+    "Static Bright": {"preset_id": "6d10a807-7330-46d1-b093-c15520ba72c0", "type": "static"}
+    "Static Dimmed": {"preset_id": "8f55e62a-e5f8-456a-9e8b-61f314bd4e99", "type": "static"}
+    "Dynamic Galaxy": {"preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb", "type": "dynamic"}
+    "Dynamic Nighttime": {"preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9", "type": "dynamic"}
+    "Dynamic Sleepy": {"preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e", "type": "dynamic"}
+    "Dynamic Unwind": {"preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6", "type": "dynamic"}
+    "Dynamic Storybook": {"preset_id": "4f76cd74-28db-455b-9c11-04654be86281", "type": "dynamic"}
+    "Dynamic Shine": {"preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54", "type": "dynamic"}
+    "Dynamic Arise": {"preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc", "type": "dynamic"}
+    "Static Galaxy": {"preset_id": "a6ba3a6e-1e3a-41fd-84f2-f7b021935deb", "type": "static"}
+    "Static Nighttime": {"preset_id": "cfdb43c7-ccb3-4dd1-b4c7-036e0d74aeb9", "type": "static"}
+    "Static Sleepy": {"preset_id": "6170702c-f2fc-46fc-99ef-ac98b6c1293e", "type": "static"}
+    "Static Unwind": {"preset_id": "f7c2f4ce-f957-4745-b9bf-651d5b81c9a6", "type": "static"}
+    "Static Storybook": {"preset_id": "4f76cd74-28db-455b-9c11-04654be86281", "type": "static"}
+    "Static Shine": {"preset_id": "ded92eba-901e-4675-8a77-2d17d95aac54", "type": "static"}
+    "Static Arise": {"preset_id": "d7225176-5cb9-47f3-ab99-8ca9908866fc", "type": "static"}
+    "Static Aurora": {"preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea", "type": "static"}
+    "Dynamic Aurora": {"preset_id": "940fd864-51e1-4761-95d3-75d4d68835ea", "type": "dynamic"}
+  included_scenes: >
+    {% set labels = included_scene_labels if included_scene_labels is sequence else [included_scene_labels] %}
+    {% set ns = namespace(out=[]) %}
+    {% for item in labels %}
+      {% set item_str = item | string %}
+      {% if item is mapping %}
+        {% set ns.out = ns.out + [item | to_json] %}
+      {% elif preset_map[item_str] is defined %}
+        {% set ns.out = ns.out + [preset_map[item_str] | to_json] %}
+      {% elif item_str | regex_search('\"preset_id\"') %}
+        {% set ns.out = ns.out + [item_str] %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.out }}
+  scene_count: "{{ included_scenes | length }}"
   scene_helper: !input scene_helper
   reset_after: !input reset_after
   tv_entity: !input tv_entity
@@ -390,9 +340,10 @@ variables:
     {% endif %}
   last_preset_index: >
     {% set data = states(scene_helper) %}
-    {% if data != "unknown" %}
-      {% if (as_timestamp(now()) - (data | from_json).timestamp) < reset_after %}
-        {{ (data | from_json).scene }}
+    {% if data != "unknown" and data != "" and data | regex_search('\"scene\"') %}
+      {% set parsed = data | from_json %}
+      {% if (as_timestamp(now()) - parsed.timestamp) < reset_after %}
+        {{ parsed.scene }}
       {% else %}
       0
       {% endif %}
@@ -401,15 +352,22 @@ variables:
     {% endif %}
   last_action_time: >
     {% set data = states(scene_helper) %}
-    {% if data != "unknown" %}
+    {% if data != "unknown" and data != "" and data | regex_search('\"timestamp\"') %}
       {{ (data | from_json).timestamp }}
     {% else %}
       0
     {% endif %}
-  current_scene_info: "{{ included_scenes[last_preset_index] | from_json }}"
+  current_scene_info: >
+    {% if scene_count > 0 %}
+      {{ included_scenes[last_preset_index] | from_json }}
+    {% else %}
+      {{ {"preset_id": "", "type": ""} }}
+    {% endif %}
   next_preset_index: >-
-    {% if command == 'off_press' %}
-      {{ (last_preset_index + 1) % (included_scenes | length) }}
+    {% if scene_count == 0 %}
+      0
+    {% elif command == 'off_press' %}
+      {{ (last_preset_index + 1) % scene_count }}
     {% elif command in ['on_press_release', 'on_hold'] %}
       0
     {% else %}
@@ -417,6 +375,8 @@ variables:
     {% endif %}
 
 action:
+  - condition: template
+    value_template: "{{ included_scenes | length > 0 }}"
   - condition: template
     value_template: >-
       {% set min_delay = 0.1 %}  {# Half second minimum delay between actions #}
