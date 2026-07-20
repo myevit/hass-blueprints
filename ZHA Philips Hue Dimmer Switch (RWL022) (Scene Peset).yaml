@@ -1,5 +1,5 @@
 blueprint:
-  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.12"
+  name: "MQTT Philips Hue Dimmer Switch (Scene Preset). Version: 2.1.13"
   description: >
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
@@ -369,7 +369,7 @@ action:
           - "{{ command == 'up_hold' or command == 'up_press'}}"
         sequence:
           - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'number') | selectattr('attributes.brightness', 'lt', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -379,7 +379,7 @@ action:
                     data:
                       brightness_step_pct: "{{ hold_press_change }}"
                       transition: !input transition_time
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gte', 255 - hold_press_change) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'number') | selectattr('attributes.brightness', 'gte', 255 - hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -393,7 +393,7 @@ action:
           - "{{ command == 'down_hold' or command == 'down_press' }}"
         sequence:
           - choose:
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'number') | selectattr('attributes.brightness', 'gt', hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
@@ -403,7 +403,7 @@ action:
                     data:
                       brightness_step_pct: "{{ -hold_press_change }}"
                       transition: !input transition_time
-              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'le', hold_press_change) | list | length > 0 }}"
+              - conditions: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | selectattr('attributes.brightness', 'number') | selectattr('attributes.brightness', 'le', hold_press_change) | list | length > 0 }}"
                 sequence:
                   - service: light.turn_on
                     target:
