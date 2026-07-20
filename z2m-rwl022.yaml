@@ -486,9 +486,8 @@ action:
         sequence:
           - variables:
               current_brightness: >
-                {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') %}
-                {% set avg_brightness = lights | map(attribute='attributes.brightness') | list | average | default(128, true) %}
-                {{ avg_brightness | int }}
+                {% set lights = expand(target_lights) | selectattr('state', 'eq', 'on') | rejectattr('attributes.brightness', 'none') | list %}
+                {{ lights | map(attribute='attributes.brightness') | average(128) | int }}
               new_brightness: >
                 {% set step = press_change if command in ['up_hold', 'up_press_release'] else -press_change %}
                 {% set target = current_brightness + (step * 2.55) %}
