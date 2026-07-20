@@ -1,5 +1,5 @@
 blueprint:
-  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.7.3"
+  name: "Wake-up light alarm with realistic sunrise effect. Version: 1.7.4"
   description: >
     A wake-up light alarm with a realistic brightness and color temperature sunrise effect.
     Uses a scheduler helper to control when the sunrise effect starts.
@@ -82,7 +82,7 @@ action:
     target:
       entity_id: !input light_entity
     data:
-      brightness: "{{ start_brightness * 2.55 | round(0) }}"
+      brightness: "{{ (start_brightness * 2.55) | round(0) | int }}"
       rgb_color: "{{ color_steps[0] }}"
       transition: "{{ update_interval }}"
   - delay:
@@ -97,9 +97,9 @@ action:
         - variables:
             progress: "{{ repeat.index / total_updates }}"
             current_brightness: >
-              {{ ((progress ** 2) * (end_brightness - start_brightness) + start_brightness) * 2.55 | round(0) }}
+              {{ (((progress ** 2) * (end_brightness - start_brightness) + start_brightness) * 2.55) | round(0) | int }}
             color_progress: "{{ progress * (color_steps | length - 1) }}"
-            color_index: "{{ color_progress | int }}"
+            color_index: "{{ [color_progress | int, (color_steps | length - 2)] | min }}"
             current_rgb: >
               {% set start = color_steps[color_index] %}
               {% set end = color_steps[color_index + 1] %}
@@ -156,7 +156,7 @@ action:
                   entity_id: !input light_entity
                   state: "off"
                 - condition: template
-                  value_template: "{{ repeat.index == total_updates - 1 }}"
+                  value_template: "{{ repeat.index == total_updates }}"
           then:
             - choose:
                 - conditions:
@@ -167,7 +167,7 @@ action:
                     - stop: "Light turned off, aborting sunrise"
                 - conditions:
                     - condition: template
-                      value_template: "{{ repeat.index == total_updates - 1 }}"
+                      value_template: "{{ repeat.index == total_updates }}"
                   sequence:
                     - if:
                         condition: template
