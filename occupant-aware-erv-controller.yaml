@@ -8,7 +8,9 @@ blueprint:
     ventilation, indoor-CO2 override, critical CO2, and sensor-fault fail-safe states
     request on. There is no routine duty cycle.
 
-    Dry-run is the default. A mandatory manual blocker prevents every service call.
+    Newly created instances default to dry-run. Inspect each instance's `live_mode` input and
+    manual blocker state to determine whether it can control the ERV; a mandatory manual
+    blocker prevents every service call unless explicitly off.
   domain: automation
   author: hass-blueprints
   homeassistant:
@@ -153,7 +155,7 @@ actions:
         {% else %} turn_off
         {% endif %}
       decision_message: >-
-        Continuous ERV {{ 'live' if live_mode else 'dry-run' }} decision={{ control_decision }}; recommendation={{ recommendation }}; selected_co2_ppm={{ state_attr(recommendation_sensor, 'selected_co2_ppm') | default('unknown') }}; outdoor_pm25={{ state_attr(recommendation_sensor, 'outdoor_pm25_ug_m3') | default('unknown') }}; switch={{ current_switch_state }}; blocker={{ blocker_active }}.
+        Continuous ERV mode={{ 'live' if live_mode else 'dry-run' }}; blocker={{ 'permitting-control' if not blocker_active else 'blocking-control' }}; decision={{ control_decision }}; recommendation={{ recommendation }}; selected_co2_ppm={{ state_attr(recommendation_sensor, 'selected_co2_ppm') | default('unknown') }}; outdoor_pm25={{ state_attr(recommendation_sensor, 'outdoor_pm25_ug_m3') | default('unknown') }}; switch={{ current_switch_state }}.
 
   - action: system_log.write
     data:
