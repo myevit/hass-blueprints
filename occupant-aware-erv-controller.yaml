@@ -1,0 +1,239 @@
+blueprint:
+  name: "Occupant-Aware ERV On/Off Controller. Version: 1.0.0"
+  description: |
+    **Version: 1.0.0**
+
+    Consumes an Occupant-Aware ERV Recommendation Sensor and controls one on/off
+    ERV switch. **Dry-run is the default**: it logs the proposed decision and
+    stores it in automation traces, but never calls `switch.turn_on` or
+    `switch.turn_off`. Set Live mode only after reviewing dry-run traces.
+
+    A manual blocker is mandatory. When it is on, this blueprint never changes
+    the ERV. Sensor fault also holds the current actuator state.
+  domain: automation
+  author: hass-blueprints
+  homeassistant:
+    min_version: "2025.4.0"
+  input:
+    entities:
+      name: Required entities
+      icon: mdi:hvac
+      input:
+        recommendation_sensor:
+          name: Recommendation sensor
+          description: Sensor created from Occupant-Aware ERV Recommendation Sensor blueprint.
+          selector:
+            entity:
+              filter:
+                domain: sensor
+        erv_switch:
+          name: ERV on/off switch
+          selector:
+            entity:
+              filter:
+                domain: switch
+        manual_blocker:
+          name: Manual ERV blocker
+          description: Required input_boolean. On prevents every ERV service call, including critical and suppression-expiry requests.
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+    timing:
+      name: Stability, safety, and intermittent timing
+      icon: mdi:timer-cog-outline
+      input:
+        decision_persistence_minutes:
+          name: Decision persistence
+          description: Non-critical recommendation must be stable this long before a state change. Critical bypasses it.
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 5
+              unit_of_measurement: minutes
+        minimum_on_minutes:
+          name: Minimum ERV on time
+          description: Minimum runtime before a non-critical off request. Default 10 minutes.
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 120
+              step: 5
+              unit_of_measurement: minutes
+        minimum_off_minutes:
+          name: Minimum ERV off time
+          description: Minimum off-time before normal on requests. Critical and maximum-suppression expiry bypass it.
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 120
+              step: 5
+              unit_of_measurement: minutes
+        maximum_suppression_minutes:
+          name: Maximum pollution suppression
+          description: Maximum continuous ERV-off time during pollution_hold before a bounded relief pulse. Default 60 minutes.
+          default: 60
+          selector:
+            number:
+              min: 10
+              max: 360
+              step: 10
+              unit_of_measurement: minutes
+        intermittent_cycle_minutes:
+          name: Intermittent cycle length
+          description: Repeats from each clock hour. Default 30 minutes.
+          default: 30
+          selector:
+            number:
+              min: 10
+              max: 60
+              step: 5
+              unit_of_measurement: minutes
+        intermittent_on_minutes:
+          name: Intermittent on time per cycle
+          description: Default 10 minutes. Must not exceed the cycle length.
+          default: 10
+          selector:
+            number:
+              min: 5
+              max: 60
+              step: 5
+              unit_of_measurement: minutes
+    observability:
+      name: Observation and notification
+      icon: mdi:clipboard-text-clock-outline
+      input:
+        live_mode:
+          name: Live mode
+          description: Disabled by default. Enable only after dry-run evidence has been reviewed.
+          default: false
+          selector:
+            boolean:
+        notification_actions:
+          name: Optional notification actions
+          description: Runs after a dry-run or live decision when enabled below. Leave empty to disable.
+          default: []
+          selector:
+            action:
+        send_notifications:
+          name: Send optional notifications
+          default: false
+          selector:
+            boolean:
+
+variables:
+  recommendation_sensor: !input recommendation_sensor
+  erv_switch: !input erv_switch
+  manual_blocker: !input manual_blocker
+  decision_persistence_minutes: !input decision_persistence_minutes
+  minimum_on_minutes: !input minimum_on_minutes
+  minimum_off_minutes: !input minimum_off_minutes
+  maximum_suppression_minutes: !input maximum_suppression_minutes
+  intermittent_cycle_minutes: !input intermittent_cycle_minutes
+  intermittent_on_minutes: !input intermittent_on_minutes
+  live_mode: !input live_mode
+  send_notifications: !input send_notifications
+
+triggers:
+  - trigger: state
+    entity_id: !input recommendation_sensor
+    id: recommendation_changed
+  - trigger: state
+    entity_id: !input manual_blocker
+    id: manual_blocker_changed
+  - trigger: homeassistant
+    event: start
+    id: startup_recheck
+  - trigger: time_pattern
+    minutes: "/5"
+    id: periodic_recheck
+
+conditions: []
+
+actions:
+  - variables:
+      recommendation: "{{ states(recommendation_sensor) }}"
+      current_switch_state: "{{ states(erv_switch) }}"
+      blocker_active: "{{ is_state(manual_blocker, 'on') }}"
+      recommendation_age_seconds: "{{ now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0) }}"
+      switch_age_seconds: "{{ now().timestamp() - as_timestamp(states[erv_switch].last_changed, 0) }}"
+      persistence_seconds: "{{ decision_persistence_minutes | float(5) * 60 }}"
+      minimum_on_seconds: "{{ minimum_on_minutes | float(10) * 60 }}"
+      minimum_off_seconds: "{{ minimum_off_minutes | float(5) * 60 }}"
+      maximum_suppression_seconds: "{{ maximum_suppression_minutes | float(60) * 60 }}"
+      relief_on_seconds: "{{ [intermittent_on_minutes | float(10) * 60, maximum_suppression_minutes | float(60) * 60] | min }}"
+      recommendation_stable: "{{ now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0) >= decision_persistence_minutes | float(5) * 60 }}"
+      suppression_expired: >-
+        {{ recommendation == 'pollution_hold'
+           and recommendation_age_seconds | float >= maximum_suppression_seconds | float
+           and (recommendation_age_seconds | float % maximum_suppression_seconds | float) < relief_on_seconds | float }}
+      intermittent_window_on: "{{ (now().minute % intermittent_cycle_minutes | int(30)) < intermittent_on_minutes | int(10) }}"
+      timing_valid: "{{ intermittent_on_minutes | float(10) <= intermittent_cycle_minutes | float(30) and maximum_suppression_minutes | float(60) > 0 }}"
+      co2_overrides_pollution: "{{ state_attr(recommendation_sensor, 'co2_overrides_pollution') | default(false) | bool }}"
+      desired_state: >-
+        {% if blocker_active or recommendation == 'sensor_fault' or not timing_valid or current_switch_state not in ['on', 'off'] %}
+          hold
+        {% elif recommendation == 'critical' or (recommendation == 'pollution_hold' and suppression_expired) %}
+          on
+        {% elif recommendation == 'ventilation_required' %}
+          on
+        {% elif recommendation == 'pollution_hold' or recommendation == 'clean_air_low_demand' %}
+          off
+        {% elif recommendation == 'intermittent' %}
+          {{ 'on' if intermittent_window_on else 'off' }}
+        {% else %}
+          hold
+        {% endif %}
+      force_on: "{{ recommendation == 'critical' or suppression_expired or co2_overrides_pollution }}"
+      control_decision: >-
+        {% if blocker_active %} hold_manual_blocker
+        {% elif recommendation == 'sensor_fault' %} hold_sensor_fault
+        {% elif not timing_valid %} hold_invalid_timing_configuration
+        {% elif current_switch_state not in ['on', 'off'] %} hold_actuator_unavailable
+        {% elif desired_state == 'hold' %} hold_unknown_recommendation
+        {% elif desired_state == current_switch_state %} no_change_already_{{ current_switch_state }}
+        {% elif not recommendation_stable and recommendation != 'critical' and not force_on %} hold_recommendation_persistence
+        {% elif desired_state == 'on' and switch_age_seconds | float < minimum_off_seconds | float and not force_on %} hold_minimum_off_time
+        {% elif desired_state == 'off' and switch_age_seconds | float < minimum_on_seconds | float %} hold_minimum_on_time
+        {% elif desired_state == 'on' %} turn_on
+        {% else %} turn_off
+        {% endif %}
+      decision_message: >-
+        ERV {{ 'live' if live_mode else 'dry-run' }} decision={{ control_decision }}; recommendation={{ recommendation }}; selected_co2_ppm={{ state_attr(recommendation_sensor, 'selected_co2_ppm') | default('unknown') }}; switch={{ current_switch_state }}; blocker={{ blocker_active }}; suppression_expired={{ suppression_expired }}; intermittent_window_on={{ intermittent_window_on }}.
+
+  - action: system_log.write
+    data:
+      level: info
+      logger: blueprints.occupant_aware_erv
+      message: "{{ decision_message }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ live_mode and control_decision == 'turn_on' }}"
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: "{{ erv_switch }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ live_mode and control_decision == 'turn_off' }}"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ erv_switch }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ send_notifications }}"
+        sequence: !input notification_actions
+
+mode: single
+max_exceeded: silent
+trace:
+  stored_traces: 20
