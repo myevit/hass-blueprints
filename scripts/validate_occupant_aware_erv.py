@@ -25,13 +25,26 @@ def decide(co2,pm,previous_hold=False,pm_valid=True,thresholds_valid=True,hold=5
     if latched:return 'pollution_hold',latched
     return 'normal_ventilation',latched
 
+def controller_decision(house_mode, blocker_active, switch_state, recommendation, stable=True, switch_age=9999, minimum_on=600, minimum_off=600):
+    """Mirror the controller priority order for its safety-critical branches."""
+    if blocker_active: return 'hold_manual_blocker'
+    if switch_state not in ('on','off'): return 'hold_actuator_unavailable'
+    desired='off' if house_mode=='Away' else ('off' if recommendation=='pollution_hold' else 'on')
+    if desired==switch_state: return f'no_change_already_{switch_state}'
+    if house_mode=='Away': return 'turn_off_away_mode'
+    force_on=recommendation not in ('normal_ventilation','pollution_hold')
+    if not stable and not force_on: return 'hold_recommendation_persistence'
+    if desired=='on' and switch_age<minimum_off and not force_on: return 'hold_minimum_off_time'
+    if desired=='off' and switch_age<minimum_on: return 'hold_minimum_on_time'
+    return f'turn_{desired}'
+
 def main():
     rec_text=REC.read_text(); ctl_text=CTL.read_text()
     rec=yaml.load(rec_text,Loader=Loader); ctl=yaml.load(ctl_text,Loader=Loader)
     assert rec['blueprint']['domain']=='template'
     assert ctl['blueprint']['domain']=='automation'
     assert 'Version: 2.0.1' in rec['blueprint']['name']
-    assert 'Version: 2.0.0' in ctl['blueprint']['name']
+    assert 'Version: 2.1.0' in ctl['blueprint']['name']
     print('PASS: YAML parsed with !input support')
 
     states={'normal_ventilation','pollution_hold','ventilation_required','critical','sensor_fault'}
@@ -40,7 +53,8 @@ def main():
     forbidden=['clean_air_low_demand','intermittent_window_on','maximum_suppression','intermittent_cycle','intermittent_on_minutes']
     for term in forbidden: assert term not in rec_text+ctl_text,term
     assert "recommendation == 'pollution_hold'" in ctl_text
-    assert "force_on: \"{{ recommendation not in ['normal_ventilation', 'pollution_hold'] }}\"" in ctl_text
+    assert "house_mode_state == 'Away'" in ctl_text
+    assert "force_on: \"{{ house_mode_state != 'Away' and recommendation not in ['normal_ventilation', 'pollution_hold'] }}\"" in ctl_text
     print('PASS: continuous-on policy and no Home Assistant duty cycle')
 
     cases=[
@@ -65,11 +79,23 @@ def main():
 
     assert 'default: false' in ctl_text
     assert "live_mode and is_state(manual_blocker, 'off') and control_decision == 'turn_on'" in ctl_text
-    assert "live_mode and is_state(manual_blocker, 'off') and control_decision == 'turn_off'" in ctl_text
+    assert "live_mode and is_state(manual_blocker, 'off') and control_decision in ['turn_off', 'turn_off_away_mode']" in ctl_text
     assert "blocker_active: \"{{ not is_state(manual_blocker, 'off') }}\"" in ctl_text
     assert ctl['mode']=='restart'
     assert 'hold_manual_blocker' in ctl_text
     print('PASS: dry-run and blocker guard both service actions')
+
+    control_cases=[
+      (('Away',False,'on','normal_ventilation',False),'turn_off_away_mode'),
+      (('Away',False,'on','critical',False),'turn_off_away_mode'),
+      (('Away',True,'on','normal_ventilation',False),'hold_manual_blocker'),
+      (('Away',False,'unavailable','normal_ventilation',False),'hold_actuator_unavailable'),
+      (('Normal',False,'off','normal_ventilation',False),'hold_recommendation_persistence'),
+      (('Normal',False,'off','critical',False),'turn_on'),
+    ]
+    for args,expected in control_cases:
+      assert controller_decision(*args)==expected,(args,controller_decision(*args))
+    print('PASS: Away has a single-owner immediate-off priority with explicit manual and actuator holds')
 
     env=Environment()
     def strings(obj):

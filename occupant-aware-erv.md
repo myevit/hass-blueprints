@@ -5,7 +5,7 @@ Blueprint files:
 - `occupant-aware-erv-recommendation.yaml` — template policy sensor.
 - `occupant-aware-erv-controller.yaml` — guarded soft-control automation.
 
-Version: 2.0.1
+Version: 2.1.0
 
 ## Equipment contract
 
@@ -14,6 +14,7 @@ This policy is designed for a continuous-duty ERV such as the **Panasonic Intell
 Therefore:
 
 - Normal operation is **on continuously**.
+- House Mode `Away` is the explicit exception: the controller turns the ERV off immediately.
 - Low CO2, vacancy, or normal humidity never requests off.
 - There is no Home Assistant duty cycle.
 - A temporary off request is allowed only for confirmed, fresh outdoor PM2.5 pollution while indoor CO2 remains below the configured override.
@@ -34,6 +35,7 @@ Official Panasonic sources:
 | `ventilation_required` | Indoor CO2 is at or above the pollution-override threshold. | On immediately, even during outdoor pollution. |
 | `critical` | Indoor CO2 is at or above the critical threshold. | On immediately. |
 | `sensor_fault` | Required input is stale/unavailable/invalid or thresholds are misordered. | Fail on; an off hold requires positive evidence of bad outdoor air. |
+| House Mode `Away` | Household is away. | Off immediately; this takes precedence over air-quality states. |
 
 Outdoor VOC, occupancy, and humidity remain visible as diagnostics but do not control routine operation.
 
@@ -70,6 +72,7 @@ This is a policy compromise, not a medical claim. Tune thresholds if household n
 - Minimum on/off times reduce repeated soft-switch changes.
 - `ventilation_required`, `critical`, and `sensor_fault` fail-on bypass persistence and minimum-off delay.
 - The mandatory blocker is fail-closed: only an explicit `off` permits a service call. `on`, `unknown`, and `unavailable` all block. Restart mode plus a final blocker check immediately before each service call closes the blocker-change race.
+- Away is an explicit controller input rather than a second switch owner. It bypasses normal decision persistence and minimum-on time so the ERV turns off promptly. The manual blocker still prevents any automatic action, including Away shutdown, when manual control is intentionally locked out.
 - Dry-run remains the blueprint default.
 - The controller reevaluates on recommendation changes, blocker changes, Home Assistant startup, and every five minutes.
 
@@ -83,6 +86,7 @@ This is a policy compromise, not a medical claim. Tune thresholds if household n
 - Diagnostic humidity: `sensor.house_humidity`
 - ERV soft-control switch: `switch.erv`
 - Manual blocker: `input_boolean.erv_automation_blocker`
+- House Mode: `input_select.house_mode`
 
 ## Test matrix
 
@@ -99,12 +103,14 @@ This is a policy compromise, not a medical claim. Tune thresholds if household n
 | All selected CO2 unavailable/stale | `sensor_fault` | Fail on. |
 | Blocker on | Recommendation unchanged | Hold; no service call. |
 | Blocker unavailable/unknown | Recommendation unchanged | Fail-closed hold; no service call. |
+| House Mode becomes Away | Any recommendation | Off immediately, unless the manual blocker prevents automatic control. |
+| House Mode leaves Away | Clean air, low CO2 | On after normal persistence/minimum-off timing. |
 | Unknown/unavailable recommendation | Unknown/unavailable | Fail on; only an explicit `pollution_hold` may request off. |
 
 ## Import and rollout
 
 1. Install the template blueprint under `config/blueprints/template/<author>/` and instantiate the recommendation sensor.
-2. Create the mandatory blocker helper and turn it on.
+2. Create the mandatory blocker helper and turn it on. Select the household House Mode helper.
 3. Install the automation blueprint and leave Live mode disabled.
 4. Verify clean-air, synthetic pollution-hold, CO2-override, sensor-fault, and hysteresis scenarios in dry-run traces.
 5. Enable Live mode only after validation; then remove the blocker and verify the real soft-control response.
