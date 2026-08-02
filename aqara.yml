@@ -67,7 +67,7 @@ blueprint:
   source_url: https://github.com/SirGoodenough/HA_Blueprints/blob/master/Automations/Zigbee2MQTT-Aqara-Magic-Cube-T1-Pro-CTP-R01-Xiaomi-Lumi.yaml
   domain: automation
   homeassistant:
-    min_version: 2024.6.0
+    min_version: "2024.10.0"
   input:
     required_input:
       name: "Required input \U0001F440"
@@ -1618,11 +1618,11 @@ blueprint:
           default: []
           selector:
             action: {}
-trigger:
+triggers:
   - platform: mqtt
     topic: !input topic
 variables:
-  action:
+  actions:
     "{% if trigger.payload_json.action is defined %}\n  {{ trigger.payload_json.action
     }}\n{% else %}\n  none\n{% endif %}\n"
   angle:
@@ -1657,7 +1657,7 @@ variables:
   config_topic_2: "{{ 'homeassistant/number/' + ieee_id + '/last_side/config'
     }}"
   topic_2: "{{ 'homeassistant/number/' + ieee_id + '/last_side' }}"
-condition:
+conditions:
   - condition: or
     conditions:
       - condition: template
@@ -1677,9 +1677,9 @@ condition:
           \ \"flip_to_side\", \"shake\", \"throw\", \"hold\"] }}\n"
   - alias: User pick
     condition: !input additional_conditions
-action:
+actions:
   - alias: Make number helper to store last side
-    service: mqtt.publish
+    action: mqtt.publish
     data:
       topic: "{{ config_topic_2 }}"
       retain: true
@@ -1704,7 +1704,7 @@ action:
       angle: "{{ angle }}"
       mode: "{{ op_mode }}"
   - alias: Store the current_side as the last_side for the next trigger
-    service: number.set_value
+    action: number.set_value
     target:
       entity_id: "{{ num_ha_name }}"
     data:

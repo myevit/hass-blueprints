@@ -3,6 +3,8 @@ blueprint:
   description: >-
     Control lights with a Philips Hue Dimmer Switch. Scene Preset integration is required https://github.com/Hypfer/hass-scene_presets
   domain: automation
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     dimmer_switch:
       name: Dimmer Switch Action Sensor
@@ -147,7 +149,7 @@ blueprint:
 mode: single
 max_exceeded: silent
 
-trigger:
+triggers:
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -374,7 +376,7 @@ variables:
       {{ last_preset_index }}
     {% endif %}
 
-action:
+actions:
   - condition: template
     value_template: "{{ included_scenes | length > 0 }}"
   - condition: template

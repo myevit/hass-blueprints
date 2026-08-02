@@ -2,6 +2,8 @@ blueprint:
   name: MQTT Philips Hue Dimmer Switch (RWL022) v.2.5.8
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     dimmer_switch:
       name: Dimmer Switch
@@ -102,11 +104,11 @@ blueprint:
           multiple: false
 mode: parallel
 max_exceeded: silent
-trigger:
+triggers:
   - platform: state
     entity_id: !input dimmer_switch
 
-action:
+actions:
   - variables:
       command: "{{ trigger.to_state.state }}"
       included_scenes: !input included_scenes
@@ -129,14 +131,14 @@ action:
   - choose:
       - conditions: "{{ command == 'on_press' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input main_scene
             data:
               transition: !input transition_time
       - conditions: "{{ command == 'on_double_press' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_on
       - conditions:
@@ -147,7 +149,7 @@ action:
                   "{{ ((state_attr(target_lights, 'brightness') | int(0)) + ((hold_press_change/100)*254)
                   | round)  <= 255 }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -159,7 +161,7 @@ action:
                   "{{ ((state_attr(target_lights, 'brightness') | int(0)) + ((hold_press_change/100)*254)
                   | round)  > 255 }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -175,7 +177,7 @@ action:
                   "{{ ((state_attr(target_lights, 'brightness') | int(0)) - ((hold_press_change/100)*254)
                   | round)  >= hold_press_change }}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -189,7 +191,7 @@ action:
                   | round)  < hold_press_change or ((state_attr(target_lights, 'brightness') | int(0))
                   - ((hold_press_change/100)*254) | round)  >= 1}}"
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id:
                         "{{ expand(target_lights) | selectattr('state', 'eq', 'on')
@@ -200,12 +202,12 @@ action:
                   - delay: !input transition_time
       - conditions: "{{ command == 'off_press' }}"
         sequence:
-          - service: scene.turn_on
-            data_template:
+          - action: scene.turn_on
+            data:
               transition: !input transition_time
               entity_id: >
                 {{ included_scenes[active_scene] }}
-          - service: input_text.set_value
+          - action: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
@@ -213,14 +215,14 @@ action:
                 {{ {"scene": (active_scene + 1) % included_scenes | length, "timestamp": as_timestamp(now())} | to_json }}
       - conditions: "{{ command == 'off_hold' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_off
             data:
               transition: !input transition_time
       - conditions: "{{ command == 'on_hold' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_on
             data:

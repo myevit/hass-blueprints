@@ -71,12 +71,12 @@ variables:
   keep_on_duration: !input keep_on_duration
   last_expected_brightness: null
 
-trigger:
+triggers:
   - platform: state
     entity_id: !input scheduler_helper
     to: "on"
 
-action:
+actions:
   # Set initial state
   - action: light.turn_on
     target:

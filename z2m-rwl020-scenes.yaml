@@ -2,6 +2,8 @@ blueprint:
   name: MQTT Philips Hue Dimmer Switch (RWL020) v3.1.10
   description: Control lights with a Philips Hue Dimmer Switch
   domain: automation
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     dimmer_switch:
       name: Dimmer Switch Action Sensor
@@ -102,7 +104,7 @@ blueprint:
 
 mode: single
 max_exceeded: silent
-trigger:
+triggers:
   - trigger: device
     domain: mqtt
     device_id: !input dimmer_switch
@@ -212,7 +214,7 @@ trigger:
     subtype: down_hold
     id: down_hold
 
-action:
+actions:
   - variables:
       command: "{{ trigger.id }}"
       included_scenes: !input included_scenes
@@ -242,13 +244,13 @@ action:
               next_scene: "{{ (current_scene | int + 1) % scene_count }}"
 
           # Activate the current scene
-          - service: scene.turn_on
+          - action: scene.turn_on
             data:
               transition: "{{ transition_time }}"
               entity_id: "{{ included_scenes[current_scene | int] }}"
 
           # Update the helper with next scene
-          - service: input_text.set_value
+          - action: input_text.set_value
             target:
               entity_id: !input scene_helper
             data:
@@ -263,7 +265,7 @@ action:
                   {% set max_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | max | default(0) %}
                   {{ (max_brightness + ((hold_press_change/100)*254) | round) <= 255 }}
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
@@ -274,7 +276,7 @@ action:
                   {% set max_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | max | default(0) %}
                   {{ (max_brightness + ((hold_press_change/100)*254) | round) > 255 }}
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
@@ -291,7 +293,7 @@ action:
                   {% set min_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | min | default(0) %}
                   {{ min_brightness > 25 }}
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
@@ -302,7 +304,7 @@ action:
                   {% set min_brightness = lights | map(attribute='attributes.brightness') | select('number') | list | min | default(0) %}
                   {{ min_brightness <= 25 }}
                 sequence:
-                  - service: light.turn_on
+                  - action: light.turn_on
                     target:
                       entity_id: "{{ expand(target_lights) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}"
                     data:
@@ -311,7 +313,7 @@ action:
 
       - conditions: "{{ command == 'off_press_release' }}"
         sequence:
-          - service: light.turn_off
+          - action: light.turn_off
             target:
               entity_id: !input light
             data:
@@ -327,14 +329,14 @@ action:
                 {% endif %}
       - conditions: "{{ command == 'off_hold' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_off
             data:
               transition: "{{ transition_time }}"
       - conditions: "{{ command == 'on_hold' }}"
         sequence:
-          - service: scene.turn_on
+          - action: scene.turn_on
             target:
               entity_id: !input aux_scene_on
             data:

@@ -1,454 +1,324 @@
 blueprint:
-  name: Camera Security Popup - Multiple Cameras
-  description: >
-    Creates fullscreen popups of camera feeds when motion is detected.
+  name: "Camera Security Popup — Four Sources. Version: 2.1.0"
+  description: |
+    **Version: 2.1.0**
 
-    Each camera is explicitly paired with its corresponding motion sensor and optional door contact.
+    Shows a fullscreen `custom:advanced-camera-card` Browser Mod popup for one of
+    four explicitly paired motion/camera sources. Each motion source has its own
+    optional door-contact gate and title, eliminating ambiguous camera routing.
 
-    The popups will appear on specified browser instances, and will close
-    automatically after motion stops (with a configurable delay).
+    The Home Assistant mode gate uses exact equality. Each popup carries a stable
+    Browser Mod `tag`, so only the popup associated with the motion source that
+    cleared is closed. This is optimized for always-on Android dashboards.
 
-    Uses the advanced-camera-card for optimal camera viewing experience.
-    Optimized for Android tablets showing dashboards 24/7.
-    
-    Documentation for advanced-camera-card:
-    - GitHub: https://github.com/dermotduffy/advanced-camera-card
-    - Official site: https://card.camera
+    Requirements: Browser Mod and `custom:advanced-camera-card`.
   domain: automation
-  source_url: https://github.com/home-assistant/blueprints/blob/main/blueprints/automation/camera_popup_on_motion.yaml
+  author: hass-blueprints
+  source_url: https://github.com/myevit/hass-blueprints/blob/main/security-camera-kiosk-popup.yml
+  homeassistant:
+    min_version: "2025.4.0"
   input:
-    # Camera 1
-    camera_1:
-      name: Camera 1
-      description: First camera to display
-      selector:
-        entity:
-          filter:
-            domain: camera
-    motion_1:
-      name: Motion Sensor 1
-      description: Motion sensor that triggers Camera 1
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: motion
-    door_1:
-      name: Door Contact 1 (Optional)
-      description: Optional door sensor for Camera 1 (popup only shows if door is closed)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: door
-    title_1:
-      name: Popup Title 1 (Optional)
-      description: Custom title for Camera 1 popup
-      default: ""
-      selector:
-        text:
-
-    # Camera 2
-    camera_2:
-      name: Camera 2
-      description: Second camera to display (leave empty to disable)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: camera
-    motion_2:
-      name: Motion Sensor 2
-      description: Motion sensor that triggers Camera 2
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: motion
-    door_2:
-      name: Door Contact 2 (Optional)
-      description: Optional door sensor for Camera 2 (popup only shows if door is closed)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: door
-    title_2:
-      name: Popup Title 2 (Optional)
-      description: Custom title for Camera 2 popup
-      default: ""
-      selector:
-        text:
-
-    # Camera 3
-    camera_3:
-      name: Camera 3
-      description: Third camera to display (leave empty to disable)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: camera
-    motion_3:
-      name: Motion Sensor 3
-      description: Motion sensor that triggers Camera 3
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: motion
-    door_3:
-      name: Door Contact 3 (Optional)
-      description: Optional door sensor for Camera 3 (popup only shows if door is closed)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: door
-    title_3:
-      name: Popup Title 3 (Optional)
-      description: Custom title for Camera 3 popup
-      default: ""
-      selector:
-        text:
-
-    # Camera 4
-    camera_4:
-      name: Camera 4
-      description: Fourth camera to display (leave empty to disable)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: camera
-    motion_4:
-      name: Motion Sensor 4
-      description: Motion sensor that triggers Camera 4
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: motion
-    door_4:
-      name: Door Contact 4 (Optional)
-      description: Optional door sensor for Camera 4 (popup only shows if door is closed)
-      default:
-      selector:
-        entity:
-          filter:
-            domain: binary_sensor
-            device_class: door
-    title_4:
-      name: Popup Title 4 (Optional)
-      description: Custom title for Camera 4 popup
-      default: ""
-      selector:
-        text:
-
-    # General settings
-    do_not_disturb:
-      name: Do Not Disturb Switch
-      description: Popups won't appear when this is on
-      selector:
-        entity:
-          filter:
-            domain: input_boolean
-      default: input_boolean.do_not_disturb
-    browser_ids:
-      name: Browser Devices
-      description: Select browser devices to show popup on
-      selector:
-        device:
-          filter:
-            integration: browser_mod
-          multiple: true
-      default: []
-    optimize_performance:
-      name: Optimize for Android Tablets
-      description: Enable optimization for Android tablets showing dashboards 24/7
-      selector:
-        boolean:
-      default: true
-    cooldown_seconds:
-      name: Cooldown Seconds
-      description: How long to wait after motion stops before closing popup
-      selector:
-        number:
-          min: 1
-          max: 60
-          unit_of_measurement: seconds
-          mode: slider
-      default: 15
-    timeout_seconds:
-      name: Timeout Seconds
-      description: Maximum time to show popup before automatically closing
-      selector:
-        number:
-          min: 30
-          max: 600
-          unit_of_measurement: seconds
-          mode: slider
-      default: 300
-
-    # Advanced Configuration
-    advanced_camera_card_config:
-      name: Camera Card Configuration
-      description: Advanced configuration for the camera card (optional, leave empty to use defaults)
-      selector:
-        object:
-      default: >
-        # You can use {{camera_entity}} for the camera entity and {{timeout_seconds}} for timeout
-        type: custom:advanced-camera-card
-        cameras:
-          - camera_entity: {{camera_entity}}
-            preload: true
-        profiles:
-          - casting
-        layout:
-          fit: contain
-        menu:
-          style: none
-        status_bar:
-          style: none
-        live:
-          preload: true
-          lazy_load: false
-          controls:
-            builtin: true
-        view:
-          timeout:
-            seconds: {{timeout_seconds}}
-            action: close
+    operating_policy:
+      name: Operating policy
+      icon: mdi:shield-check-outline
+      input:
+        house_mode:
+          name: House mode entity
+          description: Popup operation is permitted only when this entity exactly matches the required state.
+          selector:
+            entity:
+              filter:
+                domain: input_select
+        required_house_mode:
+          name: Required house mode
+          default: "Normal"
+          selector:
+            text:
+        browser_ids_template:
+          name: Browser Mod target template
+          description: >-
+            Jinja template that returns Browser Mod browser ID(s). It may use live
+            states to avoid targeting a dashboard already showing cameras.
+          selector:
+            template:
+        motion_clear_seconds:
+          name: Motion-clear cooldown
+          description: Seconds motion must remain off before only its tagged popup is closed.
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 300
+              step: 1
+              mode: box
+              unit_of_measurement: seconds
+        popup_timeout_seconds:
+          name: Maximum popup duration
+          default: 120
+          selector:
+            number:
+              min: 30
+              max: 3600
+              step: 10
+              mode: box
+              unit_of_measurement: seconds
+    source_1:
+      name: Camera source 1
+      icon: mdi:camera-outline
+      input:
+        camera_1:
+          name: Camera
+          selector:
+            entity:
+              filter:
+                domain: camera
+        motion_1:
+          name: Motion sensor
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: motion
+        door_1:
+          name: Door contact (optional)
+          description: If selected, popup opens only while this contact is off (closed).
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: door
+        title_1:
+          name: Popup title
+          default: ""
+          selector:
+            text:
+    source_2:
+      name: Camera source 2
+      icon: mdi:camera-outline
+      input:
+        camera_2:
+          name: Camera
+          selector:
+            entity:
+              filter:
+                domain: camera
+        motion_2:
+          name: Motion sensor
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: motion
+        door_2:
+          name: Door contact (optional)
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: door
+        title_2:
+          name: Popup title
+          default: ""
+          selector:
+            text:
+    source_3:
+      name: Camera source 3
+      icon: mdi:camera-outline
+      input:
+        camera_3:
+          name: Camera
+          selector:
+            entity:
+              filter:
+                domain: camera
+        motion_3:
+          name: Motion sensor
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: motion
+        door_3:
+          name: Door contact (optional)
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: door
+        title_3:
+          name: Popup title
+          default: ""
+          selector:
+            text:
+    source_4:
+      name: Camera source 4
+      icon: mdi:camera-outline
+      input:
+        camera_4:
+          name: Camera
+          selector:
+            entity:
+              filter:
+                domain: camera
+        motion_4:
+          name: Motion sensor
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: motion
+        door_4:
+          name: Door contact (optional)
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+                device_class: door
+        title_4:
+          name: Popup title
+          default: ""
+          selector:
+            text:
 
 variables:
-  # Process general settings
-  do_not_disturb: !input do_not_disturb
-  browser_ids: !input browser_ids
-  cooldown_seconds: !input cooldown_seconds
-  timeout_seconds: !input timeout_seconds
-  optimize_performance: !input optimize_performance
-  advanced_camera_card_config: !input advanced_camera_card_config
+  house_mode: !input house_mode
+  required_house_mode: !input required_house_mode
+  browser_ids: !input browser_ids_template
+  popup_timeout_seconds: !input popup_timeout_seconds
+  door_1: !input door_1
+  door_2: !input door_2
+  door_3: !input door_3
+  door_4: !input door_4
 
-  # Extract browser_mod browser IDs directly
-  browser_mod_ids: >
-    {% set ids = [] %}
-    {% for device in browser_ids %}
-      {% if device is string %}
-        {% set browser_id = device.split('.')[1] if '.' in device else device %}
-        {% set ids = ids + [browser_id] %}
-      {% endif %}
-    {% endfor %}
-    {{ ids }}
-
-  # Process all cameras and sensors into paired configurations
-  camera_configs: >
-    {% set configs = [] %}
-
-    {% if input.camera_1 and input.motion_1 %}
-      {% set config = {
-        "camera_entity": input.camera_1,
-        "motion_entity": input.motion_1,
-        "door_contact": input.door_1 if input.door_1 else none,
-        "popup_title": input.title_1 if input.title_1 else input.camera_1
-      } %}
-      {% set configs = configs + [config] %}
-    {% endif %}
-
-    {% if input.camera_2 and input.motion_2 %}
-      {% set config = {
-        "camera_entity": input.camera_2,
-        "motion_entity": input.motion_2,
-        "door_contact": input.door_2 if input.door_2 else none,
-        "popup_title": input.title_2 if input.title_2 else input.camera_2
-      } %}
-      {% set configs = configs + [config] %}
-    {% endif %}
-
-    {% if input.camera_3 and input.motion_3 %}
-      {% set config = {
-        "camera_entity": input.camera_3,
-        "motion_entity": input.motion_3,
-        "door_contact": input.door_3 if input.door_3 else none,
-        "popup_title": input.title_3 if input.title_3 else input.camera_3
-      } %}
-      {% set configs = configs + [config] %}
-    {% endif %}
-
-    {% if input.camera_4 and input.motion_4 %}
-      {% set config = {
-        "camera_entity": input.camera_4,
-        "motion_entity": input.motion_4,
-        "door_contact": input.door_4 if input.door_4 else none,
-        "popup_title": input.title_4 if input.title_4 else input.camera_4
-      } %}
-      {% set configs = configs + [config] %}
-    {% endif %}
-
-    {{ configs }}
-
-  # Get all motion sensors for condition checking
-  motion_entities: >
-    {% set entities = [] %}
-    {% for config in camera_configs %}
-      {% set entities = entities + [config.motion_entity] %}
-    {% endfor %}
-    {{ entities }}
-
-trigger:
-  - id: motion_1_on
-    trigger: state
+triggers:
+  - trigger: state
     entity_id: !input motion_1
-    to: 'on'
-  - id: motion_1_off
-    trigger: state
-    entity_id: !input motion_1 
-    to: 'off'
-  - id: motion_2_on
-    trigger: state
+    to: "on"
+    id: source_1_on
+    variables:
+      camera_entity: !input camera_1
+      door_contact: !input door_1
+      popup_title: !input title_1
+      popup_tag: camera-popup-source-1
+  - trigger: state
+    entity_id: !input motion_1
+    to: "off"
+    for:
+      seconds: !input motion_clear_seconds
+    id: source_1_off
+    variables:
+      popup_tag: camera-popup-source-1
+  - trigger: state
     entity_id: !input motion_2
-    to: 'on'
-    enabled: false
-  - id: motion_2_off
-    trigger: state
+    to: "on"
+    id: source_2_on
+    variables:
+      camera_entity: !input camera_2
+      door_contact: !input door_2
+      popup_title: !input title_2
+      popup_tag: camera-popup-source-2
+  - trigger: state
     entity_id: !input motion_2
-    to: 'off'
-    enabled: false
-  - id: motion_3_on
-    trigger: state
+    to: "off"
+    for:
+      seconds: !input motion_clear_seconds
+    id: source_2_off
+    variables:
+      popup_tag: camera-popup-source-2
+  - trigger: state
     entity_id: !input motion_3
-    to: 'on'
-    enabled: false
-  - id: motion_3_off
-    trigger: state
+    to: "on"
+    id: source_3_on
+    variables:
+      camera_entity: !input camera_3
+      door_contact: !input door_3
+      popup_title: !input title_3
+      popup_tag: camera-popup-source-3
+  - trigger: state
     entity_id: !input motion_3
-    to: 'off'
-    enabled: false
-  - id: motion_4_on
-    trigger: state
+    to: "off"
+    for:
+      seconds: !input motion_clear_seconds
+    id: source_3_off
+    variables:
+      popup_tag: camera-popup-source-3
+  - trigger: state
     entity_id: !input motion_4
-    to: 'on'
-    enabled: false
-  - id: motion_4_off
-    trigger: state
+    to: "on"
+    id: source_4_on
+    variables:
+      camera_entity: !input camera_4
+      door_contact: !input door_4
+      popup_title: !input title_4
+      popup_tag: camera-popup-source-4
+  - trigger: state
     entity_id: !input motion_4
-    to: 'off'
-    enabled: false
+    to: "off"
+    for:
+      seconds: !input motion_clear_seconds
+    id: source_4_off
+    variables:
+      popup_tag: camera-popup-source-4
 
-condition:
-  # Only proceed when Do Not Disturb is off
-  - condition: state
-    entity_id: !input do_not_disturb
-    state: "off"
+conditions:
+  - condition: template
+    value_template: "{{ states(house_mode) == required_house_mode }}"
 
-action:
-  # Enable the appropriate triggers based on configuration
+actions:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ !input.motion_2 != None and !input.motion_2 != '' }}"
-        sequence:
-          - service: system.enable_trigger
-            entity_id:
-              - motion_2_on
-              - motion_2_off
-    default: []
-
-  - choose:
-      - conditions:
+            value_template: "{{ trigger.id.endswith('_on') }}"
           - condition: template
-            value_template: "{{ !input.motion_3 != None and !input.motion_3 != '' }}"
+            value_template: "{{ not door_contact or is_state(door_contact, 'off') }}"
         sequence:
-          - service: system.enable_trigger
-            entity_id:
-              - motion_3_on
-              - motion_3_off
-    default: []
-          
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: "{{ !input.motion_4 != None and !input.motion_4 != '' }}"
-        sequence:
-          - service: system.enable_trigger
-            entity_id:
-              - motion_4_on
-              - motion_4_off
-    default: []
-
-  # Get the triggered entity
-  - variables:
-      triggered_entity: "{{ trigger.entity_id }}"
-
-  # Find camera config matching the triggered motion sensor
-  - variables:
-      current_config: >
-        {% for config in camera_configs %}
-          {% if config.motion_entity == triggered_entity %}
-            {{ config }}
-            {% break %}
-          {% endif %}
-        {% endfor %}
-
-  # Process the motion event based on which trigger fired
-  - choose:
-      # Handle motion detected (on)
-      - conditions:
-          - condition: or
-            conditions:
-              - condition: trigger
-                id: motion_1_on
-              - condition: trigger
-                id: motion_2_on
-              - condition: trigger
-                id: motion_3_on
-              - condition: trigger
-                id: motion_4_on
-          - condition: template
-            value_template: >
-              {% if current_config.door_contact %}
-                {{ is_state(current_config.door_contact, 'off') }}
-              {% else %}
-                true
-              {% endif %}
-        sequence:
-          - service: browser_mod.popup
+          - action: browser_mod.popup
             data:
+              browser_id: "{{ browser_ids }}"
+              tag: "{{ popup_tag }}"
               dismissable: true
-              browser_id: "{{ browser_mod_ids }}"
-              title: "{{ current_config.popup_title }}"
+              title: "{{ popup_title or state_attr(camera_entity, 'friendly_name') or camera_entity }}"
               size: fullscreen
               auto_focus: true
-              style:
-                animation: "0.15s"
-              content: >
-                {{ advanced_camera_card_config | replace('{{camera_entity}}', current_config.camera_entity) | replace('{{timeout_seconds}}', timeout_seconds) }}
-              deviceID: "popup-{{ triggered_entity }}"
-
-      # Handle motion ended (off)
+              content:
+                type: custom:advanced-camera-card
+                cameras:
+                  - camera_entity: "{{ camera_entity }}"
+                    live_provider: ha
+                    preload: true
+                layout:
+                  fit: contain
+                menu:
+                  style: none
+                status_bar:
+                  style: none
+                live:
+                  auto_unmute:
+                    - visible
+                    - selected
+                  controls:
+                    builtin: false
+                  lazy_load: false
+                  preload: true
+                view:
+                  timeout:
+                    seconds: "{{ popup_timeout_seconds | int }}"
+                    action: close
       - conditions:
-          - condition: or
-            conditions:
-              - condition: trigger
-                id: motion_1_off
-              - condition: trigger
-                id: motion_2_off
-              - condition: trigger
-                id: motion_3_off
-              - condition: trigger
-                id: motion_4_off
+          - condition: template
+            value_template: "{{ trigger.id.endswith('_off') }}"
         sequence:
-          - delay:
-              seconds: !input cooldown_seconds
-          - service: browser_mod.close_popup
+          - action: browser_mod.close_popup
             data:
-              browser_id: "{{ browser_mod_ids }}"
-              deviceID: "popup-{{ triggered_entity }}"
+              browser_id: "{{ browser_ids }}"
+              tag: "{{ popup_tag }}"
 
 mode: parallel
-max: 25
+max: 4
+max_exceeded: silent
+trace:
+  stored_traces: 20

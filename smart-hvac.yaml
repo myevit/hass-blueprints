@@ -33,6 +33,8 @@ blueprint:
     Zero YAML edits required—everything is configurable via the blueprint UI.
 
   domain: automation
+  homeassistant:
+    min_version: "2024.10.0"
 
   input:
     day_target_sensor:
@@ -345,7 +347,7 @@ actions:
           - choose:
               - conditions: "{{ debug_notifications_enabled }}"
                 sequence:
-                  - service: persistent_notification.create
+                  - action: persistent_notification.create
                     data:
                       title: "🛡️ Smart Thermostat Safety Check Failed"
                       message: |-
@@ -386,7 +388,7 @@ actions:
           # --- WEATHER ENABLED PATH ---
           # This block executes when weather integration is active.
           # Fetches the hourly weather forecast. The response is stored in 'weather_forecast'.
-          - service: weather.get_forecasts
+          - action: weather.get_forecasts
             target:
               entity_id: "{{ weather_entity }}"
             data:
@@ -601,7 +603,7 @@ actions:
           - choose:
               - conditions: "{{ allow_mode_switch_input and thermostat_mode != 'heat_cool' and needed_mode != thermostat_mode and needed_mode in ['heat','cool'] }}"
                 sequence:
-                  - service: climate.set_hvac_mode
+                  - action: climate.set_hvac_mode
                     target:
                       entity_id: !input thermostat
                     data:
@@ -617,7 +619,7 @@ actions:
                   # Safety condition to ensure new setpoints are within a reasonable range.
                   - condition: template
                     value_template: "{{ new_target_low >= safety_min and new_target_high <= safety_max and new_target_low < new_target_high }}"
-                  - service: climate.set_temperature
+                  - action: climate.set_temperature
                     target:
                       entity_id: !input thermostat
                     data:
@@ -635,7 +637,7 @@ actions:
                   # Safety condition to ensure the new setpoint is within a reasonable range.
                   - condition: template
                     value_template: "{{ new_target_single >= safety_min and new_target_single <= safety_max }}"
-                  - service: climate.set_temperature
+                  - action: climate.set_temperature
                     target:
                       entity_id: !input thermostat
                     data:
@@ -728,7 +730,7 @@ actions:
       - choose:
           - conditions: "{{ allow_mode_switch_input and thermostat_mode != 'heat_cool' and needed_mode != thermostat_mode and needed_mode in ['heat','cool'] }}"
             sequence:
-              - service: climate.set_hvac_mode
+              - action: climate.set_hvac_mode
                 target:
                   entity_id: !input thermostat
                 data:
@@ -741,7 +743,7 @@ actions:
             sequence:
               - condition: template
                 value_template: "{{ new_target_low >= safety_min and new_target_high <= safety_max and new_target_low < new_target_high }}"
-              - service: climate.set_temperature
+              - action: climate.set_temperature
                 target:
                   entity_id: !input thermostat
                 data:
@@ -755,7 +757,7 @@ actions:
                   new_target_single: "{{ ((current_target_single + offset_adjustment) * 2) | round / 2 }}"
               - condition: template
                 value_template: "{{ new_target_single >= safety_min and new_target_single <= safety_max }}"
-              - service: climate.set_temperature
+              - action: climate.set_temperature
                 target:
                   entity_id: !input thermostat
                 data:
@@ -770,7 +772,7 @@ actions:
             value_template: "{{ state_attr(thermostat_entity, 'fan_mode') not in [desired_fan_mode] }}"
         sequence:
           - delay: "00:01:00"   # avoid API spam if previous services run back-to-back
-          - service: climate.set_fan_mode
+          - action: climate.set_fan_mode
             target:
               entity_id: !input thermostat
             data:
@@ -780,7 +782,7 @@ actions:
   - choose:
       - conditions: "{{ debug_notifications_enabled }}"
         sequence:
-          - service: persistent_notification.create
+          - action: persistent_notification.create
             data:
               title: "Smart Thermostat DEBUG {{ 'ON' if is_weather_available else 'OFF' }}"
               message: |-

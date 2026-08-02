@@ -3,6 +3,8 @@ blueprint:
   description: >-
     Control room lights based on motion detection with time-based scenes and manual override detection.
   domain: automation
+  homeassistant:
+    min_version: "2024.10.0"
   input:
     motion_sensors:
       name: Motion Sensors
@@ -83,7 +85,7 @@ variables:
   presence_scene_night: !input presence_scene_night
   timeout_scene: !input timeout_scene
 
-trigger:
+triggers:
   - platform: state
     entity_id: !input motion_sensors
     to: "on"
@@ -95,7 +97,7 @@ trigger:
       seconds: !input transit_delay
     id: motion_clear
 
-action:
+actions:
   - variables:
       current_hour: "{{ now().hour }}"
       current_presence_scene: >-
@@ -160,7 +162,7 @@ action:
                   - condition: template
                     value_template: "{{ any_scene_lights_on }}"
                 sequence:
-                  - service: scene.turn_on
+                  - action: scene.turn_on
                     target:
                       entity_id: "{{ current_presence_scene }}"
               # If all scene lights are off, activate transit scene first
@@ -168,12 +170,12 @@ action:
                   - condition: template
                     value_template: "{{ not any_scene_lights_on }}"
                 sequence:
-                  - service: scene.turn_on
+                  - action: scene.turn_on
                     target:
                       entity_id: "{{ transit_scene }}"
                   - delay:
                       seconds: 1
-                  - service: scene.turn_on
+                  - action: scene.turn_on
                     target:
                       entity_id: "{{ current_presence_scene }}"
 
@@ -188,7 +190,7 @@ action:
                   - condition: template
                     value_template: "{{ timeout_scene != '' }}"
                 sequence:
-                  - service: scene.turn_on
+                  - action: scene.turn_on
                     target:
                       entity_id: "{{ timeout_scene }}"
                   - delay:
@@ -201,7 +203,7 @@ action:
                   - delay:
                       seconds: "{{ timeout_wait }}"
           # Turn off all lights from all scenes
-          - service: light.turn_off
+          - action: light.turn_off
             target:
               entity_id: >-
                 {% set light_entities = [] %}
