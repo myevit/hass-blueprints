@@ -31,7 +31,7 @@ The recommendation sensor is the policy layer; it never calls an ERV service. Th
 | `critical` | CO2 reaches critical threshold. | On immediately. |
 | `sensor_fault` | Required CO2/PM2.5 data is unavailable or stale at non-urgent CO2, or configured CO2 thresholds are invalid. | Hold actuator state; inspect attributes. High/critical CO2 still requests ventilation when outdoor PM2.5 is unavailable. |
 
-Important attributes include `decision_reason`, `selected_co2_ppm`, `valid_co2_sources`, `co2_overrides_pollution`, source-status attributes, configured `thresholds`, and `recovery_note`. A source returning from unavailable/stale is reevaluated on its state update and by the five-minute schedule. Trigger-based template sensor state and attributes are restored on Home Assistant restart; the controller also performs a startup recheck.
+Important attributes include `decision_reason`, `selected_co2_ppm`, `valid_co2_sources`, `co2_overrides_pollution`, source-status attributes, configured `thresholds`, and `recovery_note`. Primary CO2 and outdoor PM2.5 are direct triggers and are reevaluated immediately on source updates. Optional secondary CO2, occupancy, humidity, and VOC inputs are reevaluated by the bounded five-minute trigger; their normal decision latency is therefore up to approximately five minutes. Trigger-based template sensor state and attributes are restored on Home Assistant restart; the controller also performs a startup recheck.
 
 ## Defaults and units
 
@@ -90,7 +90,7 @@ These entities are **examples only** and are not embedded in either blueprint:
 | PM2.5 stale/unavailable, CO2 below override | Fresh valid non-urgent CO2, invalid PM2.5 | `sensor_fault` | Hold current actuator state rather than assuming outdoor air is clean. |
 | PM2.5 stale/unavailable, high CO2 | CO2 ≥ pollution override, invalid PM2.5 | `ventilation_required` or `critical` | CO2 need still wins; request ventilation. |
 | Invalid configuration | Misordered CO2 thresholds or intermittent on-time > cycle | `sensor_fault` or valid recommendation with controller hold | No actuator change; inspect reason/trace. |
-| Sensor recovery | Restore a fresh valid CO2 reading | Normal state on next source/5-min trigger | Re-evaluates from recovered recommendation. |
+| Sensor recovery | Restore a fresh valid input | Normal state immediately for primary CO2/PM2.5, or on the next five-minute trigger for optional inputs | Re-evaluates from recovered recommendation. |
 | Manual blocker | Blocker on during any condition | Recommendation unchanged | `hold_manual_blocker`; no actuator service even in Live mode. |
 | Restart | Restart while ERV is off / pollution hold | Restored recommendation then startup recheck | Uses restored recommendation state age and current switch state; inspect trace before Live mode. |
 

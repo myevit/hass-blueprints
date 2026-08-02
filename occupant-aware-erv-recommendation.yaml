@@ -1,7 +1,7 @@
 blueprint:
-  name: "Occupant-Aware ERV Recommendation Sensor. Version: 1.0.0"
+  name: "Occupant-Aware ERV Recommendation Sensor. Version: 1.0.1"
   description: |
-    **Version: 1.0.0**
+    **Version: 1.0.1**
 
     Creates an inspectable template sensor whose state is one of:
     `clean_air_low_demand`, `pollution_hold`, `intermittent`,
@@ -290,4 +290,4 @@ sensor:
       thresholds: >-
         {{ {'co2_baseline_ppm': co2_baseline_ppm | float, 'co2_ventilation_ppm': co2_ventilation_ppm | float, 'co2_pollution_override_ppm': co2_pollution_override_ppm | float, 'co2_critical_ppm': co2_critical_ppm | float, 'pm25_hold_ug_m3': pm25_hold_ug_m3 | float, 'humidity_intermittent_percent': humidity_intermittent_percent | float, 'sensor_max_age_minutes': sensor_max_age_minutes | float} }}
       recovery_note: >-
-        The controller holds the actuator on sensor_fault. A fresh valid selected indoor CO2 reading is reevaluated on its source update or the five-minute check.
+        The controller holds the actuator on sensor_fault. Primary CO2 and outdoor PM2.5 are reevaluated immediately on source updates; optional secondary CO2, occupancy, humidity, and VOC inputs are reevaluated by the bounded five-minute check.
