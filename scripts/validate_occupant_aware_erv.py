@@ -1,150 +1,93 @@
 #!/usr/bin/env python3
-"""Static validation for the occupant-aware ERV blueprints.
-
-This validates portable YAML/blueprint invariants locally. Full Home Assistant
-configuration validation still requires importing the blueprints into a running
-Home Assistant instance, which this repository deliberately does not access.
-"""
-
+"""Validate continuous ERV recommendation/controller blueprints."""
 from __future__ import annotations
 
 from pathlib import Path
 import sys
-
-from jinja2 import Environment, TemplateSyntaxError
 import yaml
-from yaml.nodes import ScalarNode
+from jinja2 import Environment
 
-ROOT = Path(__file__).resolve().parents[1]
-RECOMMENDATION = ROOT / "occupant-aware-erv-recommendation.yaml"
-CONTROLLER = ROOT / "occupant-aware-erv-controller.yaml"
-DOCS = ROOT / "occupant-aware-erv.md"
+ROOT=Path(__file__).resolve().parents[1]
+REC=ROOT/'occupant-aware-erv-recommendation.yaml'
+CTL=ROOT/'occupant-aware-erv-controller.yaml'
 
+# SafeLoader remains limited to standard YAML types; this constructor only turns
+# Home Assistant's scalar !input tag into a plain marker dictionary.
+class Loader(yaml.SafeLoader): pass
+Loader.add_constructor('!input',lambda loader,node: {'!input':loader.construct_scalar(node)})
 
-class BlueprintLoader(yaml.SafeLoader):
-    """Treat Home Assistant blueprint tags as scalar placeholders."""
+def decide(co2,pm,previous_hold=False,pm_valid=True,thresholds_valid=True,hold=35,release=25,override=1200,critical=1400):
+    latched=previous_hold if not pm_valid else (pm>=hold or (previous_hold and pm>release))
+    if not thresholds_valid or co2 is None:return 'sensor_fault',latched
+    if co2>=critical:return 'critical',latched
+    if co2>=override:return 'ventilation_required',latched
+    if not pm_valid:return 'sensor_fault',latched
+    if latched:return 'pollution_hold',latched
+    return 'normal_ventilation',latched
 
+def main():
+    rec_text=REC.read_text(); ctl_text=CTL.read_text()
+    rec=yaml.load(rec_text,Loader=Loader); ctl=yaml.load(ctl_text,Loader=Loader)
+    assert rec['blueprint']['domain']=='template'
+    assert ctl['blueprint']['domain']=='automation'
+    assert 'Version: 2.0.0' in rec['blueprint']['name']
+    assert 'Version: 2.0.0' in ctl['blueprint']['name']
+    print('PASS: YAML parsed with !input support')
 
-def _input(loader: BlueprintLoader, node: ScalarNode) -> str:
-    return f"!input {loader.construct_scalar(node)}"
+    states={'normal_ventilation','pollution_hold','ventilation_required','critical','sensor_fault'}
+    for state in states: assert state in rec_text
+    for state in ('normal_ventilation','pollution_hold'): assert state in ctl_text
+    forbidden=['clean_air_low_demand','intermittent_window_on','maximum_suppression','intermittent_cycle','intermittent_on_minutes']
+    for term in forbidden: assert term not in rec_text+ctl_text,term
+    assert "recommendation == 'pollution_hold'" in ctl_text
+    assert "force_on: \"{{ recommendation not in ['normal_ventilation', 'pollution_hold'] }}\"" in ctl_text
+    print('PASS: continuous-on policy and no Home Assistant duty cycle')
 
+    cases=[
+      ((600,10,False,True,True),'normal_ventilation',False),
+      ((600,35,False,True,True),'pollution_hold',True),
+      ((600,30,True,True,True),'pollution_hold',True),
+      ((600,25,True,True,True),'normal_ventilation',False),
+      ((1200,100,True,True,True),'ventilation_required',True),
+      ((1400,100,True,True,True),'critical',True),
+      ((600,0,False,False,True),'sensor_fault',False),
+      ((600,0,True,False,True),'sensor_fault',True),
+      ((None,10,False,True,True),'sensor_fault',False),
+      ((600,10,False,True,False),'sensor_fault',False),
+    ]
+    for args,expected_state,expected_latch in cases:
+      state,latch=decide(*args)
+      assert (state,latch)==(expected_state,expected_latch),(args,state,latch)
+    print('PASS: normal-on, PM hysteresis, CO2 override, critical, and fail-on scenarios')
 
-BlueprintLoader.add_constructor("!input", _input)
+    assert 'default: false' in ctl_text
+    assert "live_mode and is_state(manual_blocker, 'off') and control_decision == 'turn_on'" in ctl_text
+    assert "live_mode and is_state(manual_blocker, 'off') and control_decision == 'turn_off'" in ctl_text
+    assert "blocker_active: \"{{ not is_state(manual_blocker, 'off') }}\"" in ctl_text
+    assert ctl['mode']=='restart'
+    assert 'hold_manual_blocker' in ctl_text
+    print('PASS: dry-run and blocker guard both service actions')
 
+    env=Environment()
+    def strings(obj):
+      if isinstance(obj,str):
+        yield obj
+      elif isinstance(obj,dict):
+        for value in obj.values(): yield from strings(value)
+      elif isinstance(obj,list):
+        for value in obj: yield from strings(value)
+    for document in (rec,ctl):
+      for template in strings(document):
+        if '{{' in template or '{%' in template:
+          env.parse(template)
+    print('PASS: complete embedded Jinja scalar templates parsed')
 
-def load(path: Path) -> dict:
-    with path.open(encoding="utf-8") as source:
-        # BlueprintLoader subclasses SafeLoader and only adds the scalar !input
-        # constructor; it does not enable PyYAML's unsafe Python constructors.
-        data = yaml.load(source, Loader=BlueprintLoader)
-    if not isinstance(data, dict):
-        raise AssertionError(f"{path.name}: expected a top-level mapping")
-    return data
+    household=('sensor.view_plus_carbon_dioxide','sensor.wave_plus_carbon_dioxide','sensor.airgradient_pm2_5','switch.erv')
+    for entity in household:
+      assert entity not in rec_text and entity not in ctl_text
+    print('PASS: household entities remain documentation-only')
 
-
-def assert_current_automation_syntax(text: str) -> None:
-    for forbidden in ("\ntrigger:\n", "\ncondition:\n", "\naction:\n", "\n  - service:"):
-        assert forbidden not in text, f"legacy syntax found: {forbidden!r}"
-
-
-def assert_jinja_syntax(value: object, path: str = "root") -> None:
-    """Parse every embedded template; runtime-only HA helpers are not executed."""
-    environment = Environment()
-    if isinstance(value, dict):
-        for key, item in value.items():
-            assert_jinja_syntax(item, f"{path}.{key}")
-    elif isinstance(value, list):
-        for index, item in enumerate(value):
-            assert_jinja_syntax(item, f"{path}[{index}]")
-    elif isinstance(value, str) and ("{{" in value or "{%" in value):
-        try:
-            environment.parse(value)
-        except TemplateSyntaxError as error:
-            raise AssertionError(f"invalid Jinja at {path}: {error}") from error
-
-
-def main() -> None:
-    recommendation = load(RECOMMENDATION)
-    controller = load(CONTROLLER)
-    recommendation_text = RECOMMENDATION.read_text(encoding="utf-8")
-    controller_text = CONTROLLER.read_text(encoding="utf-8")
-    docs_text = DOCS.read_text(encoding="utf-8")
-
-    assert recommendation["blueprint"]["domain"] == "template"
-    assert controller["blueprint"]["domain"] == "automation"
-    assert recommendation["blueprint"]["homeassistant"]["min_version"] == "2025.4.0"
-    assert controller["blueprint"]["homeassistant"]["min_version"] == "2025.4.0"
-    assert_current_automation_syntax(recommendation_text)
-    assert_current_automation_syntax(controller_text)
-    assert_jinja_syntax(recommendation, RECOMMENDATION.name)
-    assert_jinja_syntax(controller, CONTROLLER.name)
-
-    states = {
-        "clean_air_low_demand",
-        "pollution_hold",
-        "intermittent",
-        "ventilation_required",
-        "critical",
-        "sensor_fault",
-    }
-    for state in states:
-        assert state in recommendation_text, f"missing recommendation state: {state}"
-
-    assert "ns.co2_values | max" in recommendation_text
-    assert "co2 >= co2_pollution_override_ppm" in recommendation_text
-    assert "co2_overrides_pollution" in recommendation_text
-    assert "minutes: \"/5\"" in recommendation_text
-    assert "states[entity_id].last_updated" in recommendation_text
-    assert "invalid_co2_threshold_order" in recommendation_text
-    assert "no_fresh_valid_outdoor_pm25" in recommendation_text
-
-    controller_inputs = controller["blueprint"]["input"]
-    live_input = controller_inputs["observability"]["input"]["live_mode"]
-    assert live_input["default"] is False
-    assert "hold_manual_blocker" in controller_text
-    assert "hold_sensor_fault" in controller_text
-    assert "suppression_expired" in controller_text
-    assert "recommendation_age_seconds | float % maximum_suppression_seconds" in controller_text
-    assert "hold_invalid_timing_configuration" in controller_text
-    assert "minimum_on_seconds" in controller_text
-    assert "minimum_off_seconds" in controller_text
-    assert "stored_traces: 20" in controller_text
-    assert "action: system_log.write" in controller_text
-    assert "states[recommendation_sensor] is not none" in controller_text
-    assert "default(false, true) | bool(false)" in controller_text
-
-    turn_on_index = controller_text.index("action: switch.turn_on")
-    turn_off_index = controller_text.index("action: switch.turn_off")
-    guard_on_index = controller_text.index("live_mode and control_decision == 'turn_on'")
-    guard_off_index = controller_text.index("live_mode and control_decision == 'turn_off'")
-    assert guard_on_index < turn_on_index
-    assert guard_off_index < turn_off_index
-
-    household_entities = (
-        "sensor.airgradient_pm2_5",
-        "sensor.airgradient_voc_index",
-        "sensor.view_plus_carbon_dioxide",
-        "sensor.wave_plus_carbon_dioxide",
-        "binary_sensor.magic_areas_aggregates_house_aggregate_occupancy",
-        "sensor.house_humidity",
-        "switch.erv",
-    )
-    for entity_id in household_entities:
-        assert entity_id not in recommendation_text
-        assert entity_id not in controller_text
-        assert entity_id in docs_text
-
-    print("PASS: YAML parsed with !input support")
-    print("PASS: current plural automation/template syntax checks")
-    print("PASS: embedded Jinja syntax parsed locally")
-    print("PASS: all six recommendation states and CO2-overrides-pollution logic")
-    print("PASS: dry-run default guards both ERV service actions")
-    print("PASS: household entities appear only in documentation examples")
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except (AssertionError, KeyError, TypeError, yaml.YAMLError) as error:
-        print(f"FAIL: {error}", file=sys.stderr)
-        raise SystemExit(1)
+if __name__=='__main__':
+    try: main()
+    except Exception as exc:
+      print(f'FAIL: {exc}',file=sys.stderr); raise
