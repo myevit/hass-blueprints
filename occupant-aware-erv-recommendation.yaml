@@ -1,0 +1,293 @@
+blueprint:
+  name: "Occupant-Aware ERV Recommendation Sensor. Version: 1.0.0"
+  description: |
+    **Version: 1.0.0**
+
+    Creates an inspectable template sensor whose state is one of:
+    `clean_air_low_demand`, `pollution_hold`, `intermittent`,
+    `ventilation_required`, `critical`, or `sensor_fault`.
+
+    The highest fresh, valid selected indoor CO2 reading drives ventilation need.
+    Outdoor PM2.5 is the primary pollution signal. Outdoor VOC and occupancy are
+    optional supporting inputs. This blueprint diagnoses only; it never controls
+    an ERV.
+  domain: template
+  author: hass-blueprints
+  homeassistant:
+    min_version: "2025.4.0"
+  input:
+    sensors:
+      name: Required sensors
+      icon: mdi:air-filter
+      input:
+        recommendation_name:
+          name: Recommendation sensor name
+          default: Occupant-Aware ERV Recommendation
+          selector:
+            text:
+        indoor_co2_primary:
+          name: Primary indoor CO2 sensor
+          description: Required. ppm; highest valid selected CO2 reading wins.
+          selector:
+            entity:
+              filter:
+                domain: sensor
+        indoor_co2_secondary:
+          name: Secondary indoor CO2 sensor (optional)
+          description: Optional. ppm; included in the highest-reading selection.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: sensor
+        outdoor_pm25:
+          name: Outdoor PM2.5 sensor
+          description: Required primary outdoor-pollution signal, in µg/m³.
+          selector:
+            entity:
+              filter:
+                domain: sensor
+        outdoor_voc:
+          name: Outdoor VOC/AQ index sensor (optional)
+          description: Optional supporting diagnostic only; it does not suppress ventilation alone.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: sensor
+        occupancy:
+          name: Occupancy binary sensor (optional)
+          description: Optional. Off reduces only baseline demand; it never invalidates high CO2.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: binary_sensor
+        indoor_humidity:
+          name: Indoor humidity sensor (optional)
+          description: Optional. Percent RH; may request intermittent ventilation when high.
+          default: ""
+          selector:
+            entity:
+              filter:
+                domain: sensor
+    thresholds:
+      name: Thresholds and freshness
+      icon: mdi:tune
+      input:
+        sensor_max_age_minutes:
+          name: Sensor maximum age
+          description: A reading older than this is stale. Default is intentionally conservative.
+          default: 15
+          selector:
+            number:
+              min: 5
+              max: 120
+              step: 5
+              unit_of_measurement: minutes
+        co2_baseline_ppm:
+          name: Occupied baseline CO2
+          description: Above this, occupied spaces request intermittent ventilation. Default 800 ppm.
+          default: 800
+          selector:
+            number:
+              min: 500
+              max: 1500
+              step: 50
+              unit_of_measurement: ppm
+        co2_ventilation_ppm:
+          name: CO2 ventilation-required threshold
+          description: Default 1000 ppm. Must be below the critical threshold.
+          default: 1000
+          selector:
+            number:
+              min: 600
+              max: 2000
+              step: 50
+              unit_of_measurement: ppm
+        co2_pollution_override_ppm:
+          name: CO2 pollution-override threshold
+          description: Default 1200 ppm. At or above this, CO2 overrides PM2.5 pollution hold.
+          default: 1200
+          selector:
+            number:
+              min: 700
+              max: 2500
+              step: 50
+              unit_of_measurement: ppm
+        co2_critical_ppm:
+          name: Critical CO2 threshold
+          description: Default 1400 ppm. Critical always requests ventilation.
+          default: 1400
+          selector:
+            number:
+              min: 800
+              max: 3000
+              step: 50
+              unit_of_measurement: ppm
+        pm25_hold_ug_m3:
+          name: PM2.5 pollution-hold threshold
+          description: Default 35 µg/m³. Above this, non-urgent ventilation is held.
+          default: 35
+          selector:
+            number:
+              min: 5
+              max: 250
+              step: 5
+              unit_of_measurement: µg/m³
+        humidity_intermittent_percent:
+          name: Humidity intermittent threshold
+          description: Optional humidity support. Default 60 %RH; ignored if no fresh humidity sensor is selected.
+          default: 60
+          selector:
+            number:
+              min: 40
+              max: 80
+              step: 5
+              unit_of_measurement: "%"
+
+variables:
+  recommendation_name: !input recommendation_name
+  indoor_co2_primary: !input indoor_co2_primary
+  indoor_co2_secondary: !input indoor_co2_secondary
+  outdoor_pm25: !input outdoor_pm25
+  outdoor_voc: !input outdoor_voc
+  occupancy: !input occupancy
+  indoor_humidity: !input indoor_humidity
+  sensor_max_age_minutes: !input sensor_max_age_minutes
+  co2_baseline_ppm: !input co2_baseline_ppm
+  co2_ventilation_ppm: !input co2_ventilation_ppm
+  co2_pollution_override_ppm: !input co2_pollution_override_ppm
+  co2_critical_ppm: !input co2_critical_ppm
+  pm25_hold_ug_m3: !input pm25_hold_ug_m3
+  humidity_intermittent_percent: !input humidity_intermittent_percent
+
+triggers:
+  - trigger: state
+    entity_id:
+      - !input indoor_co2_primary
+      - !input outdoor_pm25
+    # Optional inputs are reevaluated by the bounded five-minute check. Keeping
+    # empty optional selectors out of entity_id avoids an invalid empty trigger.
+  - trigger: time_pattern
+    minutes: "/5"
+
+sensor:
+  - name: "{{ recommendation_name }}"
+    icon: mdi:air-filter
+    state: >-
+      {% set max_age_seconds = sensor_max_age_minutes | float(15) * 60 %}
+      {% set ns = namespace(co2_values=[]) %}
+      {% for entity_id in [indoor_co2_primary, indoor_co2_secondary] if entity_id not in ['', none] %}
+        {% set raw = states(entity_id) %}
+        {% set age = now().timestamp() - as_timestamp(states[entity_id].last_updated, 0) %}
+        {% if raw not in ['unknown', 'unavailable', 'none', ''] and raw | float(-1) >= 350 and raw | float(-1) <= 10000 and age <= max_age_seconds %}
+          {% set ns.co2_values = ns.co2_values + [raw | float] %}
+        {% endif %}
+      {% endfor %}
+      {% set co2 = ns.co2_values | max if ns.co2_values | length else none %}
+      {% set pm_raw = states(outdoor_pm25) %}
+      {% set pm_age = now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) %}
+      {% set pm_valid = pm_raw not in ['unknown', 'unavailable', 'none', ''] and pm_raw | float(-1) >= 0 and pm_raw | float(-1) <= 2000 and pm_age <= max_age_seconds %}
+      {% set pm_polluted = pm_valid and pm_raw | float >= pm25_hold_ug_m3 | float %}
+      {% set thresholds_valid = co2_baseline_ppm | float <= co2_ventilation_ppm | float <= co2_pollution_override_ppm | float <= co2_critical_ppm | float %}
+      {% set occupied = occupancy not in ['', none] and is_state(occupancy, 'on') %}
+      {% set humidity_raw = states(indoor_humidity) if indoor_humidity not in ['', none] else 'unavailable' %}
+      {% set humidity_age = now().timestamp() - as_timestamp(states[indoor_humidity].last_updated, 0) if indoor_humidity not in ['', none] else max_age_seconds + 1 %}
+      {% set humidity_high = humidity_raw not in ['unknown', 'unavailable', 'none', ''] and humidity_raw | float(-1) >= humidity_intermittent_percent | float and humidity_age <= max_age_seconds %}
+      {% if not thresholds_valid %} sensor_fault
+      {% elif co2 is none %} sensor_fault
+      {% elif co2 >= co2_critical_ppm | float %} critical
+      {% elif co2 >= co2_pollution_override_ppm | float %} ventilation_required
+      {% elif not pm_valid %} sensor_fault
+      {% elif pm_polluted %} pollution_hold
+      {% elif co2 >= co2_ventilation_ppm | float %} ventilation_required
+      {% elif humidity_high or (occupied and co2 >= co2_baseline_ppm | float) %} intermittent
+      {% else %} clean_air_low_demand
+      {% endif %}
+    attributes:
+      decision_reason: >-
+        {% set max_age_seconds = sensor_max_age_minutes | float(15) * 60 %}
+        {% set ns = namespace(values=[]) %}
+        {% for entity_id in [indoor_co2_primary, indoor_co2_secondary] if entity_id not in ['', none] %}
+          {% set raw = states(entity_id) %}
+          {% set age = now().timestamp() - as_timestamp(states[entity_id].last_updated, 0) %}
+          {% if raw not in ['unknown', 'unavailable', 'none', ''] and raw | float(-1) >= 350 and raw | float(-1) <= 10000 and age <= max_age_seconds %}
+            {% set ns.values = ns.values + [raw | float] %}
+          {% endif %}
+        {% endfor %}
+        {% set co2 = ns.values | max if ns.values | length else none %}
+        {% set pm_valid = states(outdoor_pm25) not in ['unknown', 'unavailable', 'none', ''] and states(outdoor_pm25) | float(-1) >= 0 and states(outdoor_pm25) | float(-1) <= 2000 and now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) <= max_age_seconds %}
+        {% set pm_polluted = pm_valid and states(outdoor_pm25) | float >= pm25_hold_ug_m3 | float %}
+        {% set thresholds_valid = co2_baseline_ppm | float <= co2_ventilation_ppm | float <= co2_pollution_override_ppm | float <= co2_critical_ppm | float %}
+        {% if not thresholds_valid %} invalid_co2_threshold_order
+        {% elif co2 is none %} no_fresh_valid_selected_indoor_co2
+        {% elif co2 >= co2_critical_ppm | float %} selected_co2_at_or_above_critical_threshold
+        {% elif co2 >= co2_pollution_override_ppm | float %} selected_co2_overrides_pollution_hold
+        {% elif not pm_valid %} no_fresh_valid_outdoor_pm25
+        {% elif pm_polluted %} outdoor_pm25_above_hold_threshold
+        {% elif co2 >= co2_ventilation_ppm | float %} selected_co2_at_or_above_ventilation_threshold
+        {% else %} low_demand_or_intermittent_support
+        {% endif %}
+      selected_co2_ppm: >-
+        {% set max_age_seconds = sensor_max_age_minutes | float(15) * 60 %}
+        {% set ns = namespace(values=[]) %}
+        {% for entity_id in [indoor_co2_primary, indoor_co2_secondary] if entity_id not in ['', none] %}
+          {% set raw = states(entity_id) %}
+          {% set age = now().timestamp() - as_timestamp(states[entity_id].last_updated, 0) %}
+          {% if raw not in ['unknown', 'unavailable', 'none', ''] and raw | float(-1) >= 350 and raw | float(-1) <= 10000 and age <= max_age_seconds %}
+            {% set ns.values = ns.values + [raw | float] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.values | max | round(0) if ns.values | length else 'unknown' }}
+      valid_co2_sources: >-
+        {% set max_age_seconds = sensor_max_age_minutes | float(15) * 60 %}
+        {% set ns = namespace(values=[]) %}
+        {% for entity_id in [indoor_co2_primary, indoor_co2_secondary] if entity_id not in ['', none] %}
+          {% set raw = states(entity_id) %}
+          {% set age = now().timestamp() - as_timestamp(states[entity_id].last_updated, 0) %}
+          {% if raw not in ['unknown', 'unavailable', 'none', ''] and raw | float(-1) >= 350 and raw | float(-1) <= 10000 and age <= max_age_seconds %}
+            {% set ns.values = ns.values + [entity_id] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.values | join(', ') if ns.values else 'none' }}
+      outdoor_pm25_ug_m3: "{{ states(outdoor_pm25) if states(outdoor_pm25) not in ['unknown', 'unavailable', 'none', ''] else 'unknown' }}"
+      outdoor_pm25_status: >-
+        {% set age = now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) %}
+        {% if states(outdoor_pm25) in ['unknown', 'unavailable', 'none', ''] %} unavailable
+        {% elif age > sensor_max_age_minutes | float(15) * 60 %} stale
+        {% elif states(outdoor_pm25) | float(-1) < 0 or states(outdoor_pm25) | float(-1) > 2000 %} invalid
+        {% else %} valid
+        {% endif %}
+      outdoor_voc_status: >-
+        {% if outdoor_voc in ['', none] %} not_configured
+        {% elif states(outdoor_voc) in ['unknown', 'unavailable', 'none', ''] %} unavailable
+        {% elif now().timestamp() - as_timestamp(states[outdoor_voc].last_updated, 0) > sensor_max_age_minutes | float(15) * 60 %} stale
+        {% else %} supporting_only
+        {% endif %}
+      occupancy_status: >-
+        {% if occupancy in ['', none] %} not_configured
+        {% elif states(occupancy) in ['unknown', 'unavailable', 'none', ''] %} unavailable
+        {% else %} {{ states(occupancy) }}
+        {% endif %}
+      humidity_status: >-
+        {% if indoor_humidity in ['', none] %} not_configured
+        {% elif states(indoor_humidity) in ['unknown', 'unavailable', 'none', ''] %} unavailable
+        {% elif now().timestamp() - as_timestamp(states[indoor_humidity].last_updated, 0) > sensor_max_age_minutes | float(15) * 60 %} stale
+        {% else %} {{ states(indoor_humidity) }}
+        {% endif %}
+      co2_overrides_pollution: >-
+        {% set max_age_seconds = sensor_max_age_minutes | float(15) * 60 %}
+        {% set ns = namespace(values=[]) %}
+        {% for entity_id in [indoor_co2_primary, indoor_co2_secondary] if entity_id not in ['', none] %}
+          {% set raw = states(entity_id) %}
+          {% set age = now().timestamp() - as_timestamp(states[entity_id].last_updated, 0) %}
+          {% if raw not in ['unknown', 'unavailable', 'none', ''] and raw | float(-1) >= 350 and raw | float(-1) <= 10000 and age <= max_age_seconds %}
+            {% set ns.values = ns.values + [raw | float] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.values | length > 0 and ns.values | max >= co2_pollution_override_ppm | float }}
+      thresholds: >-
+        {{ {'co2_baseline_ppm': co2_baseline_ppm | float, 'co2_ventilation_ppm': co2_ventilation_ppm | float, 'co2_pollution_override_ppm': co2_pollution_override_ppm | float, 'co2_critical_ppm': co2_critical_ppm | float, 'pm25_hold_ug_m3': pm25_hold_ug_m3 | float, 'humidity_intermittent_percent': humidity_intermittent_percent | float, 'sensor_max_age_minutes': sensor_max_age_minutes | float} }}
+      recovery_note: >-
+        The controller holds the actuator on sensor_fault. A fresh valid selected indoor CO2 reading is reevaluated on its source update or the five-minute check.
