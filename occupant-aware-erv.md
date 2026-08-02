@@ -5,7 +5,7 @@ Blueprint files:
 - `occupant-aware-erv-recommendation.yaml` — template-domain diagnostic sensor.
 - `occupant-aware-erv-controller.yaml` — automation-domain on/off ERV controller.
 
-Version: 1.0.0
+Version: 1.0.1
 
 ## Design and safety contract
 

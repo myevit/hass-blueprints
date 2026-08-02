@@ -1,7 +1,7 @@
 blueprint:
-  name: "Occupant-Aware ERV On/Off Controller. Version: 1.0.0"
+  name: "Occupant-Aware ERV On/Off Controller. Version: 1.0.1"
   description: |
-    **Version: 1.0.0**
+    **Version: 1.0.1**
 
     Consumes an Occupant-Aware ERV Recommendation Sensor and controls one on/off
     ERV switch. **Dry-run is the default**: it logs the proposed decision and
@@ -159,21 +159,26 @@ actions:
       recommendation: "{{ states(recommendation_sensor) }}"
       current_switch_state: "{{ states(erv_switch) }}"
       blocker_active: "{{ is_state(manual_blocker, 'on') }}"
-      recommendation_age_seconds: "{{ now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0) }}"
+      recommendation_age_seconds: >-
+        {{ now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0)
+           if states[recommendation_sensor] is not none else 0 }}
       switch_age_seconds: "{{ now().timestamp() - as_timestamp(states[erv_switch].last_changed, 0) }}"
       persistence_seconds: "{{ decision_persistence_minutes | float(5) * 60 }}"
       minimum_on_seconds: "{{ minimum_on_minutes | float(10) * 60 }}"
       minimum_off_seconds: "{{ minimum_off_minutes | float(5) * 60 }}"
       maximum_suppression_seconds: "{{ maximum_suppression_minutes | float(60) * 60 }}"
       relief_on_seconds: "{{ [intermittent_on_minutes | float(10) * 60, maximum_suppression_minutes | float(60) * 60] | min }}"
-      recommendation_stable: "{{ now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0) >= decision_persistence_minutes | float(5) * 60 }}"
+      recommendation_stable: >-
+        {{ states[recommendation_sensor] is not none
+           and now().timestamp() - as_timestamp(states[recommendation_sensor].last_changed, 0)
+             >= decision_persistence_minutes | float(5) * 60 }}
       suppression_expired: >-
         {{ recommendation == 'pollution_hold'
            and recommendation_age_seconds | float >= maximum_suppression_seconds | float
            and (recommendation_age_seconds | float % maximum_suppression_seconds | float) < relief_on_seconds | float }}
       intermittent_window_on: "{{ (now().minute % intermittent_cycle_minutes | int(30)) < intermittent_on_minutes | int(10) }}"
       timing_valid: "{{ intermittent_on_minutes | float(10) <= intermittent_cycle_minutes | float(30) and maximum_suppression_minutes | float(60) > 0 }}"
-      co2_overrides_pollution: "{{ state_attr(recommendation_sensor, 'co2_overrides_pollution') | default(false) | bool }}"
+      co2_overrides_pollution: "{{ state_attr(recommendation_sensor, 'co2_overrides_pollution') | default(false, true) | bool(false) }}"
       desired_state: >-
         {% if blocker_active or recommendation == 'sensor_fault' or not timing_valid or current_switch_state not in ['on', 'off'] %}
           hold

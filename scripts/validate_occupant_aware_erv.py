@@ -110,6 +110,8 @@ def main() -> None:
     assert "minimum_off_seconds" in controller_text
     assert "stored_traces: 20" in controller_text
     assert "action: system_log.write" in controller_text
+    assert "states[recommendation_sensor] is not none" in controller_text
+    assert "default(false, true) | bool(false)" in controller_text
 
     turn_on_index = controller_text.index("action: switch.turn_on")
     turn_off_index = controller_text.index("action: switch.turn_off")
