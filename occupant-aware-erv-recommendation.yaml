@@ -1,7 +1,7 @@
 blueprint:
-  name: "Continuous ERV Outdoor-Air Compromise Sensor. Version: 2.0.0"
+  name: "Continuous ERV Outdoor-Air Compromise Sensor. Version: 2.0.1"
   description: |
-    **Version: 2.0.0**
+    **Version: 2.0.1**
 
     Policy sensor for a continuous-duty ERV such as the Panasonic FV-10VEC2.
     Normal operation is continuous ventilation. The only normal off recommendation
@@ -105,8 +105,8 @@ blueprint:
               unit_of_measurement: ppm
         pm25_hold_ug_m3:
           name: PM2.5 pollution-hold entry threshold
-          description: Enter pollution hold at or above this fresh outdoor reading. Default 35 µg/m³.
-          default: 35
+          description: Enter pollution hold at or above this fresh outdoor reading. Default 55 µg/m³ (approximately the EPA Unhealthy PM2.5 boundary).
+          default: 55
           selector:
             number:
               min: 5
@@ -115,8 +115,8 @@ blueprint:
               unit_of_measurement: µg/m³
         pm25_release_ug_m3:
           name: PM2.5 pollution-hold release threshold
-          description: Resume normal continuous ventilation at or below this value. Must be below the entry threshold. Default 25 µg/m³.
-          default: 25
+          description: Resume normal continuous ventilation at or below this value. Must be below the entry threshold. Default 35 µg/m³.
+          default: 35
           selector:
             number:
               min: 0
@@ -163,7 +163,9 @@ sensor:
       {% set pm_raw = states(outdoor_pm25) %}
       {% set pm_age = now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) %}
       {% set pm_valid = pm_raw not in ['unknown', 'unavailable', 'none', ''] and 0 <= pm_raw | float(-1) <= 2000 and pm_age <= max_age %}
-      {% set previous_hold = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) %}
+      {% set previous_thresholds = this.attributes.thresholds | default({}, true) %}
+      {% set same_policy = previous_thresholds is mapping and previous_thresholds.get('pm25_hold_ug_m3', -1) | float(-1) == pm25_hold_ug_m3 | float and previous_thresholds.get('pm25_release_ug_m3', -1) | float(-1) == pm25_release_ug_m3 | float %}
+      {% set previous_hold = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) if same_policy else false %}
       {% set pm_hold = pm_valid and (pm_raw | float >= pm25_hold_ug_m3 | float or (previous_hold and pm_raw | float > pm25_release_ug_m3 | float)) %}
       {% set thresholds_valid = pm25_release_ug_m3 | float < pm25_hold_ug_m3 | float and co2_pollution_override_ppm | float <= co2_critical_ppm | float %}
       {% if not thresholds_valid %} sensor_fault
@@ -188,7 +190,9 @@ sensor:
         {% set co2 = ns.values | max if ns.values else none %}
         {% set pm_raw = states(outdoor_pm25) %}
         {% set pm_valid = pm_raw not in ['unknown', 'unavailable', 'none', ''] and 0 <= pm_raw | float(-1) <= 2000 and now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) <= max_age %}
-        {% set previous_hold = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) %}
+        {% set previous_thresholds = this.attributes.thresholds | default({}, true) %}
+        {% set same_policy = previous_thresholds is mapping and previous_thresholds.get('pm25_hold_ug_m3', -1) | float(-1) == pm25_hold_ug_m3 | float and previous_thresholds.get('pm25_release_ug_m3', -1) | float(-1) == pm25_release_ug_m3 | float %}
+        {% set previous_hold = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) if same_policy else false %}
         {% set pm_hold = pm_valid and (pm_raw | float >= pm25_hold_ug_m3 | float or (previous_hold and pm_raw | float > pm25_release_ug_m3 | float)) %}
         {% if pm25_release_ug_m3 | float >= pm25_hold_ug_m3 | float or co2_pollution_override_ppm | float > co2_critical_ppm | float %} invalid_threshold_order
         {% elif co2 is none %} no_fresh_valid_indoor_co2_fail_on
@@ -232,7 +236,9 @@ sensor:
         {% set max_age = sensor_max_age_minutes | float(15) * 60 %}
         {% set raw = states(outdoor_pm25) %}
         {% set valid = raw not in ['unknown', 'unavailable', 'none', ''] and 0 <= raw | float(-1) <= 2000 and now().timestamp() - as_timestamp(states[outdoor_pm25].last_updated, 0) <= max_age %}
-        {% set previous = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) %}
+        {% set previous_thresholds = this.attributes.thresholds | default({}, true) %}
+        {% set same_policy = previous_thresholds is mapping and previous_thresholds.get('pm25_hold_ug_m3', -1) | float(-1) == pm25_hold_ug_m3 | float and previous_thresholds.get('pm25_release_ug_m3', -1) | float(-1) == pm25_release_ug_m3 | float %}
+        {% set previous = this.attributes.outdoor_pollution_latched | default(false, true) | bool(false) if same_policy else false %}
         {{ previous if not valid else (raw | float >= pm25_hold_ug_m3 | float or (previous and raw | float > pm25_release_ug_m3 | float)) }}
       outdoor_voc_status: >-
         {% if outdoor_voc in ['', none] %} not_configured

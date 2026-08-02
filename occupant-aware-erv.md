@@ -5,7 +5,7 @@ Blueprint files:
 - `occupant-aware-erv-recommendation.yaml` — template policy sensor.
 - `occupant-aware-erv-controller.yaml` — guarded soft-control automation.
 
-Version: 2.0.0
+Version: 2.0.1
 
 ## Equipment contract
 
@@ -42,8 +42,8 @@ Outdoor VOC, occupancy, and humidity remain visible as diagnostics but do not co
 | Input | Default |
 |---|---:|
 | Sensor maximum age | 15 minutes |
-| Outdoor PM2.5 hold entry | 35 µg/m³ |
-| Outdoor PM2.5 hold release | 25 µg/m³ |
+| Outdoor PM2.5 hold entry | 55 µg/m³ |
+| Outdoor PM2.5 hold release | 35 µg/m³ |
 | Indoor CO2 pollution override | 1200 ppm |
 | Critical indoor CO2 | 1400 ppm |
 | Decision persistence | 10 minutes |
@@ -52,7 +52,7 @@ Outdoor VOC, occupancy, and humidity remain visible as diagnostics but do not co
 
 ### PM2.5 hysteresis
 
-The recommendation enters `pollution_hold` at **35 µg/m³ or above**. Once held, it remains latched until PM2.5 reaches **25 µg/m³ or below**. The trigger-based sensor uses Home Assistant's documented `this` variable to retain the previous latch attribute across reevaluations, restarts, and temporary PM-sensor outages. This deadband prevents chatter around one threshold.
+The recommendation enters `pollution_hold` at **55 µg/m³ or above** after the controller persistence period. This entry value is approximately the current U.S. EPA boundary between *Unhealthy for Sensitive Groups* and *Unhealthy* PM2.5 air; it is used here as an engineering control point, not as an official ERV-operating prescription. Once held, it remains latched until PM2.5 reaches **35 µg/m³ or below**. The 20 µg/m³ deadband prevents chatter. The trigger-based sensor uses Home Assistant's documented `this` variable to retain the previous latch across reevaluations, restarts, and temporary PM-sensor outages. Changing the configured PM thresholds resets the old latch and reevaluates against the new entry threshold.
 
 ### Indoor/outdoor compromise
 
@@ -90,9 +90,9 @@ This is a policy compromise, not a medical claim. Tune thresholds if household n
 |---|---|---|
 | Clean outdoor air, low CO2 | `normal_ventilation` | On; low demand does not stop ERV. |
 | Clean outdoor air, high CO2 | `ventilation_required` or `critical` | On. |
-| PM2.5 rises to 35+, CO2 below 1200 | `pollution_hold` | Off after persistence/minimum-on time. |
-| PM2.5 falls but remains above 25 | `pollution_hold` remains latched | Stay off. |
-| PM2.5 reaches 25 or below | `normal_ventilation` | On after persistence/minimum-off time. |
+| PM2.5 rises to 55+, CO2 below 1200 | `pollution_hold` | Off after persistence/minimum-on time. |
+| PM2.5 falls but remains above 35 | `pollution_hold` remains latched | Stay off. |
+| PM2.5 reaches 35 or below | `normal_ventilation` | On after persistence/minimum-off time. |
 | PM2.5 bad, CO2 reaches 1200 | `ventilation_required` | Immediate on. |
 | PM2.5 bad, CO2 reaches 1400 | `critical` | Immediate on. |
 | Outdoor PM2.5 unavailable/stale | `sensor_fault` | Fail on. |

@@ -16,7 +16,7 @@ CTL=ROOT/'occupant-aware-erv-controller.yaml'
 class Loader(yaml.SafeLoader): pass
 Loader.add_constructor('!input',lambda loader,node: {'!input':loader.construct_scalar(node)})
 
-def decide(co2,pm,previous_hold=False,pm_valid=True,thresholds_valid=True,hold=35,release=25,override=1200,critical=1400):
+def decide(co2,pm,previous_hold=False,pm_valid=True,thresholds_valid=True,hold=55,release=35,override=1200,critical=1400):
     latched=previous_hold if not pm_valid else (pm>=hold or (previous_hold and pm>release))
     if not thresholds_valid or co2 is None:return 'sensor_fault',latched
     if co2>=critical:return 'critical',latched
@@ -30,7 +30,7 @@ def main():
     rec=yaml.load(rec_text,Loader=Loader); ctl=yaml.load(ctl_text,Loader=Loader)
     assert rec['blueprint']['domain']=='template'
     assert ctl['blueprint']['domain']=='automation'
-    assert 'Version: 2.0.0' in rec['blueprint']['name']
+    assert 'Version: 2.0.1' in rec['blueprint']['name']
     assert 'Version: 2.0.0' in ctl['blueprint']['name']
     print('PASS: YAML parsed with !input support')
 
@@ -45,9 +45,9 @@ def main():
 
     cases=[
       ((600,10,False,True,True),'normal_ventilation',False),
-      ((600,35,False,True,True),'pollution_hold',True),
-      ((600,30,True,True,True),'pollution_hold',True),
-      ((600,25,True,True,True),'normal_ventilation',False),
+      ((600,55,False,True,True),'pollution_hold',True),
+      ((600,45,True,True,True),'pollution_hold',True),
+      ((600,35,True,True,True),'normal_ventilation',False),
       ((1200,100,True,True,True),'ventilation_required',True),
       ((1400,100,True,True,True),'critical',True),
       ((600,0,False,False,True),'sensor_fault',False),
@@ -59,6 +59,9 @@ def main():
       state,latch=decide(*args)
       assert (state,latch)==(expected_state,expected_latch),(args,state,latch)
     print('PASS: normal-on, PM hysteresis, CO2 override, critical, and fail-on scenarios')
+    assert "same_policy" in rec_text
+    assert "previous_thresholds.get('pm25_hold_ug_m3', -1)" in rec_text
+    print('PASS: threshold changes reset an obsolete pollution latch')
 
     assert 'default: false' in ctl_text
     assert "live_mode and is_state(manual_blocker, 'off') and control_decision == 'turn_on'" in ctl_text
